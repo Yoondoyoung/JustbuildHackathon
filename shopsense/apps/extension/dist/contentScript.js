@@ -27,7 +27,14 @@ const b=(e,t=document)=>{var n;for(const i of e){const o=t.querySelector(i),l=(n
       .chat-input { padding: 12px 16px 16px; border-top: 1px solid #eee; background: #fff; position: relative; }
       .chat-input textarea { width: 100%; padding: 12px 48px 12px 12px; border-radius: 12px; border: 1px solid #e5e7eb; background: #f9fafb; resize: none; outline: none; font-size: 13px; }
       .chat-input button { position: absolute; right: 22px; bottom: 22px; }
-      .auth-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .auth-wrapper {
+        flex: 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 20px;
+        overflow-y: auto;
+      }
       .auth-container { width: 100%; max-width: 320px; }
       .auth-title { text-align: center; font-size: 24px; font-weight: 700; margin: 0 0 24px 0; color: #111827; }
       .auth-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #e5e7eb; }

@@ -37,6 +37,5 @@ export async function runChat(
   const content =
     completion.choices[0]?.message?.content?.trim() ||
     "Sorry, I could not generate a response.";
-  console.log("[chat] response", content);
   return { message: { role: "assistant", content } };
 }
