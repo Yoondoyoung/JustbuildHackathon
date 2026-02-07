@@ -77,9 +77,17 @@ export async function run(payload: ChatPayload): Promise<{ content: string }> {
   console.log("[orchestrator] classified categories (agents to call):", effective);
 
   const results = await Promise.all(
-    effective.map((cat) => {
+    effective.map(async (cat) => {
       console.log("[orchestrator] calling agent:", cat);
-      return AGENT_RUNNERS[cat](payload);
+      const res = await AGENT_RUNNERS[cat](payload);
+      const preview =
+        typeof res.content === "string" ? res.content.slice(0, 500) : "";
+      console.log("[orchestrator] agent result:", {
+        agent: cat,
+        length: res.content?.length ?? 0,
+        preview,
+      });
+      return res;
     })
   );
 

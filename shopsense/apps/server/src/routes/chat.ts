@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import type { AnalyzeResult } from "../types/api";
 import type { NormalizedProduct } from "../types/normalized";
-import { runChat } from "../agent/chat";
+import { runAnalyze } from "../agent/analyze";
+import { run as runAgents } from "../agent/orchestrator";
 
 type ExtractedLike = {
   page_url: string;
@@ -49,12 +50,25 @@ chatRoute.post("/", async (c) => {
     const normalized =
       body.normalized ?? (body.extracted ? toNormalized(body.extracted) : undefined);
 
+    if (!normalized?.page_url) {
+      return c.json({ error: "Missing normalized or extracted payload" }, 400);
+    }
+
+    let analyze = body.analyze;
+    if (!analyze) {
+      try {
+        analyze = await runAnalyze(normalized);
+      } catch (err) {
+        console.warn("[chat] analyze failed, continuing without analyze", err);
+      }
+    }
+
     console.log("[chat] question -> orchestrator:", question);
 
-    const result = await runChat({
+    const result = await runAgents({
       question,
       normalized,
-      analyze: body.analyze,
+      analyze,
     });
 
     return c.json(result);
