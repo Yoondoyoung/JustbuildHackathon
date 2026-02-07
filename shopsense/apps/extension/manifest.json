@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "ShopSense",
+  "version": "0.1.0",
+  "description": "Analyze product pages and chat about them.",
+  "permissions": ["tabs", "activeTab", "storage"],
+  "host_permissions": ["<all_urls>", "http://localhost:8787/*"],
+  "background": {
+    "service_worker": "src/background/service_worker.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/contentScript.ts"]
+    }
+  ],
+  "side_panel": {
+    "default_path": "src/ui/sidepanel.html"
+  },
+  "action": {
+    "default_title": "ShopSense"
+  }
+}
