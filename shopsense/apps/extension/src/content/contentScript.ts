@@ -613,6 +613,13 @@ const ensureSidebar = () => {
     } satisfies Msg);
   });
 
+  chatInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      chatForm.requestSubmit();
+    }
+  });
+
   settingsButton.addEventListener("click", () => {
     showPreferences();
   });

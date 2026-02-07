@@ -132,6 +132,13 @@ chatForm.addEventListener("submit", async (event) => {
   }
 });
 
+chatInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    chatForm.requestSubmit();
+  }
+});
+
 chrome.runtime.onMessage.addListener(
   (
     message: AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
