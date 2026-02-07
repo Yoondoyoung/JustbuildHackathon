@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { openai } from "./providers/llm";
+import { env } from "./config/env";
 import { analyzeRoute } from "./routes/analyze";
 import { chatRoute } from "./routes/chat";
 
@@ -30,6 +31,6 @@ app.get("/verify", async (c) => {
   }
 });
 
-const port = Number(process.env.PORT) || 8787;
+const port = env.PORT;
 serve({ fetch: app.fetch, port });
 console.log(`Server running at http://localhost:${port}`);

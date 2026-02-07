@@ -1,4 +1,5 @@
 import { openai } from "../../providers/llm";
+import { env } from "../../config/env";
 import type { AnalyzeResult } from "../../types/api";
 import type { NormalizedProduct } from "../../types/normalized";
 
@@ -42,7 +43,7 @@ const mockResult = (normalized: NormalizedProduct): AnalyzeResult => ({
 export async function runAnalyze(
   normalized: NormalizedProduct
 ): Promise<AnalyzeResult> {
-  if (process.env.MOCK_ANALYZE === "1") {
+  if (env.MOCK_ANALYZE) {
     return mockResult(normalized);
   }
 
