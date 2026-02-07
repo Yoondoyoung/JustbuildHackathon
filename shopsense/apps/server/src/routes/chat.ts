@@ -71,7 +71,9 @@ chatRoute.post("/", async (c) => {
       analyze,
     });
 
-    return c.json(result);
+    return c.json({
+      message: { role: "assistant" as const, content: result.content },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return c.json({ error: message }, 500);

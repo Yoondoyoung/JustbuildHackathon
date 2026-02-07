@@ -16,10 +16,16 @@ function formatPriceItem(item: ProductItem): string {
   return `- ${item.title} (${source}) — ${priceText} — ${item.url}`;
 }
 
+/**
+ * Price agent flow:
+ * 1. Receive payload (question + normalized product info)
+ * 2. Run 3 search APIs in parallel via aggregateSearch: Amazon, Google Shopping, Walmart
+ * 3. Use merged results to build answer: price range summary + top 3 items with links
+ */
 export async function runPrice(payload: ChatPayload): Promise<AgentAnswer> {
   const query = toQuery(payload);
   if (!query) {
-    return { content: "제품명이 없어서 가격을 조회할 수 없어요. 제품명을 알려주세요." };
+    return { content: "I can't look up prices without a product name. Please provide the product name." };
   }
 
   const response = await aggregateSearch(
@@ -29,7 +35,7 @@ export async function runPrice(payload: ChatPayload): Promise<AgentAnswer> {
 
   const priced = response.results.filter((r) => r.price?.amount != null);
   if (priced.length === 0) {
-    return { content: "현재 검색된 가격 정보가 부족해요. 다른 제품명으로 다시 시도해 주세요." };
+    return { content: "We don't have enough price data from the search. Please try a different product name." };
   }
 
   const top = priced.slice(0, 3);
@@ -39,9 +45,9 @@ export async function runPrice(payload: ChatPayload): Promise<AgentAnswer> {
 
   const summary =
     amounts.length > 0
-      ? `가격 범위는 대략 ${min.toFixed(2)}~${max.toFixed(2)} USD 입니다.`
-      : "가격 범위를 계산할 수 없어요.";
+      ? `The price range is approximately ${min.toFixed(2)}–${max.toFixed(2)} USD.`
+      : "Unable to calculate the price range.";
 
   const lines = top.map(formatPriceItem).join("\n");
-  return { content: `${summary}\n\n추천 가격 정보:\n${lines}` };
+  return { content: `${summary}\n\nRecommended price info:\n${lines}` };
 }
