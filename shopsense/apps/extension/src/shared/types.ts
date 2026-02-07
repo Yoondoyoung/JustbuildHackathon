@@ -3,7 +3,22 @@ export type Msg =
   | { type: "CHAT_SEND"; tabId?: number; question: string }
   | { type: "PANEL_INIT"; tabId: number }
   | { type: "GET_TAB_ID" }
-  | { type: "TOGGLE_SIDEBAR" };
+  | { type: "TOGGLE_SIDEBAR" }
+  | { type: "CHECK_AUTH" }
+  | { type: "SIGN_IN"; email: string; password: string }
+  | { type: "SIGN_UP"; email: string; password: string }
+  | { type: "CHECK_PREFERENCES" }
+  | { type: "GET_PREFERENCES" }
+  | { type: "SAVE_PREFERENCES"; preferences: UserPreferences };
+
+export type UserPreferences = {
+  price: "budget" | "value" | "premium" | "flexible" | null;
+  quality: "high" | "balanced" | "basic" | null;
+  brand: "loyal" | "explorer" | "none" | null;
+  sustainability: "eco" | "low" | null;
+  reviews: "high" | "medium" | "low" | null;
+  innovation: "early" | "wait" | "conservative" | null;
+};
 
 export type Extracted = {
   page_url: string;

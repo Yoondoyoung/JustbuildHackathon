@@ -56,9 +56,20 @@ const showMainContent = () => {
 };
 
 const showAuth = () => {
-  authContainer.style.display = "block";
+  authContainer.style.display = "flex";
   mainContent.style.display = "none";
+  // Clear any existing content
+  authContainer.innerHTML = "";
   renderAuth(authContainer, showMainContent);
+};
+
+const handleSuggestedQuestion = async (question: string) => {
+  try {
+    const tabId = await getActiveTabId();
+    await sendMessage({ type: "CHAT_SEND", tabId, question });
+  } catch {
+    setStatus("Failed to send question.");
+  }
 };
 
 const initMainContent = async () => {
@@ -66,7 +77,7 @@ const initMainContent = async () => {
     const tabId = await getActiveTabId();
     const response = await chrome.runtime.sendMessage({ type: "PANEL_INIT", tabId });
     if (response?.result) {
-      renderAnalyze(analyzeContainer, response.result);
+      renderAnalyze(analyzeContainer, response.result, handleSuggestedQuestion);
     }
     if (Array.isArray(response?.history)) {
       response.history.forEach((message: { role: "user" | "assistant"; content: string }) => {
@@ -79,24 +90,30 @@ const initMainContent = async () => {
 };
 
 const init = async () => {
-  const authState = await checkAuth();
-  
-  if (authState.isAuthenticated) {
-    showMainContent();
-    await initMainContent();
-  } else {
-    showAuth();
-  }
-
-  // Listen for auth state changes
-  onAuthStateChange((state: AuthState) => {
-    if (state.isAuthenticated) {
+  try {
+    const authState = await checkAuth();
+    
+    if (authState.isAuthenticated) {
       showMainContent();
-      initMainContent();
+      await initMainContent();
     } else {
       showAuth();
     }
-  });
+
+    // Listen for auth state changes
+    onAuthStateChange((state: AuthState) => {
+      if (state.isAuthenticated) {
+        showMainContent();
+        initMainContent();
+      } else {
+        showAuth();
+      }
+    });
+  } catch (error) {
+    console.error("Auth check failed:", error);
+    // If auth check fails, show auth screen anyway
+    showAuth();
+  }
 };
 
 analyzeButton.addEventListener("click", async () => {
@@ -124,6 +141,13 @@ chatForm.addEventListener("submit", async (event) => {
   }
 });
 
+chatInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    chatForm.requestSubmit();
+  }
+});
+
 chrome.runtime.onMessage.addListener(
   (
     message: AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
@@ -143,7 +167,7 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "ANALYZE_RESULT") {
-      renderAnalyze(analyzeContainer, message.result);
+      renderAnalyze(analyzeContainer, message.result, handleSuggestedQuestion);
       setStatus("Analyze completed");
       sendResponse({ ok: true });
       return true;

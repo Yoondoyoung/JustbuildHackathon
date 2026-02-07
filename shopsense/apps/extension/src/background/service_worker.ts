@@ -12,6 +12,7 @@ import type {
   StatusMsg,
 } from "../shared/types";
 import { postAnalyze, postChat } from "./apiClient";
+import { supabase } from "../shared/supabase";
 
 const SIDE_PANEL_PATH = "src/ui/sidepanel.html";
 
@@ -51,6 +52,20 @@ const safeSendRuntimeMessage = (
   }
 };
 
+const safeSendTabMessage = (
+  tabId: number,
+  msg: AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
+) => {
+  try {
+    const result = chrome.tabs.sendMessage(tabId, msg);
+    if (result && typeof result.catch === "function") {
+      result.catch(() => {});
+    }
+  } catch (error) {
+    // ignore missing listeners (e.g., content script not injected)
+  }
+};
+
 const sendStatus = (tabId: number, message: string) => {
   const msg: StatusMsg = { type: "STATUS", tabId, message };
   safeSendRuntimeMessage(msg);
@@ -64,11 +79,13 @@ const sendError = (tabId: number, message: string) => {
 const sendAnalyzeResult = (tabId: number, result: AnalyzeResult) => {
   const msg: AnalyzeResultMsg = { type: "ANALYZE_RESULT", tabId, result };
   safeSendRuntimeMessage(msg);
+  safeSendTabMessage(tabId, msg);
 };
 
 const sendChatResponse = (tabId: number, message: ChatMessage) => {
   const msg: ChatResponseMsg = { type: "CHAT_RESPONSE", tabId, message };
   safeSendRuntimeMessage(msg);
+  safeSendTabMessage(tabId, msg);
 };
 
 const fallbackAnalyze = (extracted: Extracted): AnalyzeResult => {
@@ -81,6 +98,11 @@ const fallbackAnalyze = (extracted: Extracted): AnalyzeResult => {
     price: extracted.price,
     rating: extracted.rating,
     review_count: extracted.review_count,
+    suggested_questions: [
+      "Is this good value for money?",
+      "What do reviews say about it?",
+      "How does it compare to similar products?",
+    ],
   };
 };
 
@@ -188,6 +210,141 @@ chrome.runtime.onMessage.addListener(
       const result = analyzeCache.get(message.tabId);
       const history = chatCache.get(message.tabId) ?? [];
       sendResponse({ ok: true, result, history });
+      return true;
+    }
+
+    if (message.type === "CHECK_AUTH") {
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          sendResponse({ isAuthenticated: !!session });
+        } catch (error) {
+          sendResponse({ isAuthenticated: false, error: "Auth check failed" });
+        }
+      })();
+      return true;
+    }
+
+    if (message.type === "SIGN_IN") {
+      (async () => {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: message.email,
+            password: message.password,
+          });
+          if (error) {
+            sendResponse({ error: error.message });
+          } else {
+            sendResponse({ ok: true });
+          }
+        } catch (error: any) {
+          sendResponse({ error: error.message || "Sign in failed" });
+        }
+      })();
+      return true;
+    }
+
+    if (message.type === "SIGN_UP") {
+      (async () => {
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email: message.email,
+            password: message.password,
+          });
+          if (error) {
+            sendResponse({ error: error.message });
+          } else {
+            sendResponse({ ok: true });
+          }
+        } catch (error: any) {
+          sendResponse({ error: error.message || "Sign up failed" });
+        }
+      })();
+      return true;
+    }
+
+    if (message.type === "CHECK_PREFERENCES") {
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) {
+            sendResponse({ hasPreferences: false });
+            return;
+          }
+
+          const { data, error } = await supabase
+            .from("user_preferences")
+            .select("id")
+            .eq("user_id", session.user.id)
+            .single();
+
+          sendResponse({ hasPreferences: !!data && !error });
+        } catch (error) {
+          sendResponse({ hasPreferences: false });
+        }
+      })();
+      return true;
+    }
+
+    if (message.type === "GET_PREFERENCES") {
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) {
+            sendResponse({ preferences: null });
+            return;
+          }
+
+          const { data, error } = await supabase
+            .from("user_preferences")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .single();
+
+          if (error && error.code !== "PGRST116") {
+            sendResponse({ preferences: null, error: error.message });
+          } else {
+            sendResponse({ preferences: data || null });
+          }
+        } catch (error: any) {
+          sendResponse({ preferences: null, error: error.message });
+        }
+      })();
+      return true;
+    }
+
+    if (message.type === "SAVE_PREFERENCES") {
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) {
+            sendResponse({ error: "Not authenticated" });
+            return;
+          }
+
+          const { error } = await supabase
+            .from("user_preferences")
+            .upsert({
+              user_id: session.user.id,
+              price_sensitivity: message.preferences.price || null,
+              quality_preference: message.preferences.quality || null,
+              brand_preference: message.preferences.brand || null,
+              sustainability: message.preferences.sustainability || null,
+              review_dependency: message.preferences.reviews || null,
+              innovation_adoption: message.preferences.innovation || null,
+            }, {
+              onConflict: "user_id",
+            });
+
+          if (error) {
+            sendResponse({ error: error.message });
+          } else {
+            sendResponse({ ok: true });
+          }
+        } catch (error: any) {
+          sendResponse({ error: error.message || "Failed to save preferences" });
+        }
+      })();
       return true;
     }
 

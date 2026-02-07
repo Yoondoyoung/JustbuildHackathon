@@ -1,15 +1,15 @@
 import type { AnalyzeResult } from "../../shared/types";
 
-export const renderAnalyze = (container: HTMLElement, result: AnalyzeResult) => {
+export const renderAnalyze = (
+  container: HTMLElement,
+  result: AnalyzeResult,
+  onSuggestedQuestionClick?: (question: string) => void
+) => {
   container.innerHTML = "";
-
-  const title = document.createElement("h2");
-  title.textContent = result.title ?? "Analyze";
 
   const summary = document.createElement("p");
   summary.textContent = result.summary ?? "No summary available.";
 
-  container.appendChild(title);
   container.appendChild(summary);
 
   if (result.price) {
@@ -71,5 +71,33 @@ export const renderAnalyze = (container: HTMLElement, result: AnalyzeResult) => 
     });
 
     container.appendChild(citations);
+  }
+
+  if (result.suggested_questions?.length) {
+    const section = document.createElement("div");
+    section.className = "suggested-questions";
+
+    result.suggested_questions.forEach((question) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "suggested-question-btn";
+      btn.textContent = question;
+      btn.style.display = "block";
+      btn.style.width = "100%";
+      btn.style.textAlign = "left";
+      btn.style.padding = "0.5rem 0.75rem";
+      btn.style.marginBottom = "0.35rem";
+      btn.style.cursor = "pointer";
+      btn.style.border = "1px solid var(--border, #e0e0e0)";
+      btn.style.borderRadius = "4px";
+      btn.style.background = "var(--bg-secondary, #f5f5f5)";
+      btn.style.fontSize = "0.9rem";
+      if (onSuggestedQuestionClick) {
+        btn.addEventListener("click", () => onSuggestedQuestionClick(question));
+      }
+      section.appendChild(btn);
+    });
+
+    container.appendChild(section);
   }
 };
