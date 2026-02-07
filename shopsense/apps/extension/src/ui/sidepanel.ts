@@ -56,8 +56,10 @@ const showMainContent = () => {
 };
 
 const showAuth = () => {
-  authContainer.style.display = "block";
+  authContainer.style.display = "flex";
   mainContent.style.display = "none";
+  // Clear any existing content
+  authContainer.innerHTML = "";
   renderAuth(authContainer, showMainContent);
 };
 
@@ -79,24 +81,30 @@ const initMainContent = async () => {
 };
 
 const init = async () => {
-  const authState = await checkAuth();
-  
-  if (authState.isAuthenticated) {
-    showMainContent();
-    await initMainContent();
-  } else {
-    showAuth();
-  }
-
-  // Listen for auth state changes
-  onAuthStateChange((state: AuthState) => {
-    if (state.isAuthenticated) {
+  try {
+    const authState = await checkAuth();
+    
+    if (authState.isAuthenticated) {
       showMainContent();
-      initMainContent();
+      await initMainContent();
     } else {
       showAuth();
     }
-  });
+
+    // Listen for auth state changes
+    onAuthStateChange((state: AuthState) => {
+      if (state.isAuthenticated) {
+        showMainContent();
+        initMainContent();
+      } else {
+        showAuth();
+      }
+    });
+  } catch (error) {
+    console.error("Auth check failed:", error);
+    // If auth check fails, show auth screen anyway
+    showAuth();
+  }
 };
 
 analyzeButton.addEventListener("click", async () => {
