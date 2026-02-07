@@ -48,6 +48,10 @@ analyzeRoute.post("/", async (c) => {
     }
 
     const result = await runAnalyze(normalized);
+
+    console.log("[analyze] summary:", result.summary ?? "(none)");
+    console.log("[analyze] suggested_questions:", result.suggested_questions ?? []);
+
     return c.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

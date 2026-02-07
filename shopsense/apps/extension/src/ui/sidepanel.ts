@@ -63,12 +63,21 @@ const showAuth = () => {
   renderAuth(authContainer, showMainContent);
 };
 
+const handleSuggestedQuestion = async (question: string) => {
+  try {
+    const tabId = await getActiveTabId();
+    await sendMessage({ type: "CHAT_SEND", tabId, question });
+  } catch {
+    setStatus("Failed to send question.");
+  }
+};
+
 const initMainContent = async () => {
   try {
     const tabId = await getActiveTabId();
     const response = await chrome.runtime.sendMessage({ type: "PANEL_INIT", tabId });
     if (response?.result) {
-      renderAnalyze(analyzeContainer, response.result);
+      renderAnalyze(analyzeContainer, response.result, handleSuggestedQuestion);
     }
     if (Array.isArray(response?.history)) {
       response.history.forEach((message: { role: "user" | "assistant"; content: string }) => {
@@ -161,7 +170,7 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "ANALYZE_RESULT") {
-      renderAnalyze(analyzeContainer, message.result);
+      renderAnalyze(analyzeContainer, message.result, handleSuggestedQuestion);
       setStatus("Analyze completed");
       sendResponse({ ok: true });
       return true;

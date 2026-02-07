@@ -10,6 +10,7 @@ import type {
   Extracted,
   Msg,
   StatusMsg,
+  UserPreferences,
 } from "../shared/types";
 import { extractPage } from "./extractor";
 
@@ -51,10 +52,6 @@ const setStatus = (text: string) => {
 
 const renderAnalyze = (container: HTMLElement, result: AnalyzeResult) => {
   container.innerHTML = "";
-
-  const title = document.createElement("h2");
-  title.textContent = result.title ?? "Analyze";
-  container.appendChild(title);
 
   const summary = document.createElement("p");
   summary.textContent = result.summary ?? "No summary available.";
@@ -119,6 +116,34 @@ const renderAnalyze = (container: HTMLElement, result: AnalyzeResult) => {
     });
 
     container.appendChild(citations);
+  }
+
+  if (result.suggested_questions?.length) {
+    const section = document.createElement("div");
+    section.className = "suggested-questions";
+
+    result.suggested_questions.forEach((question) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "suggested-question-btn";
+      btn.textContent = question;
+      btn.style.display = "block";
+      btn.style.width = "100%";
+      btn.style.textAlign = "left";
+      btn.style.padding = "0.5rem 0.75rem";
+      btn.style.marginBottom = "0.35rem";
+      btn.style.cursor = "pointer";
+      btn.style.border = "1px solid #e0e0e0";
+      btn.style.borderRadius = "4px";
+      btn.style.background = "#f5f5f5";
+      btn.style.fontSize = "0.9rem";
+      btn.addEventListener("click", () => {
+        chrome.runtime.sendMessage({ type: "CHAT_SEND", question });
+      });
+      section.appendChild(btn);
+    });
+
+    container.appendChild(section);
   }
 };
 
@@ -444,7 +469,7 @@ const ensureSidebar = () => {
     mainContent.style.display = "none";
     
     // Load existing preferences
-    let existingPrefs = null;
+    let existingPrefs: UserPreferences | null = null;
     try {
       const response = await chrome.runtime.sendMessage({ type: "GET_PREFERENCES" } satisfies Msg);
       existingPrefs = response?.preferences || null;
@@ -544,25 +569,25 @@ const ensureSidebar = () => {
       const reviewsSelect = authContainer.querySelector("#ss-pref-reviews") as HTMLSelectElement;
       const innovationSelect = authContainer.querySelector("#ss-pref-innovation") as HTMLSelectElement;
 
-      if (priceSelect && existingPrefs.price_sensitivity) priceSelect.value = existingPrefs.price_sensitivity;
-      if (qualitySelect && existingPrefs.quality_preference) qualitySelect.value = existingPrefs.quality_preference;
-      if (brandSelect && existingPrefs.brand_preference) brandSelect.value = existingPrefs.brand_preference;
+      if (priceSelect && existingPrefs.price) priceSelect.value = existingPrefs.price;
+      if (qualitySelect && existingPrefs.quality) qualitySelect.value = existingPrefs.quality;
+      if (brandSelect && existingPrefs.brand) brandSelect.value = existingPrefs.brand;
       if (sustainabilitySelect && existingPrefs.sustainability) sustainabilitySelect.value = existingPrefs.sustainability;
-      if (reviewsSelect && existingPrefs.review_dependency) reviewsSelect.value = existingPrefs.review_dependency;
-      if (innovationSelect && existingPrefs.innovation_adoption) innovationSelect.value = existingPrefs.innovation_adoption;
+      if (reviewsSelect && existingPrefs.reviews) reviewsSelect.value = existingPrefs.reviews;
+      if (innovationSelect && existingPrefs.innovation) innovationSelect.value = existingPrefs.innovation;
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorMessage.style.display = "none";
 
-      const preferences = {
-        price: (authContainer.querySelector("#ss-pref-price") as HTMLSelectElement).value || null,
-        quality: (authContainer.querySelector("#ss-pref-quality") as HTMLSelectElement).value || null,
-        brand: (authContainer.querySelector("#ss-pref-brand") as HTMLSelectElement).value || null,
-        sustainability: (authContainer.querySelector("#ss-pref-sustainability") as HTMLSelectElement).value || null,
-        reviews: (authContainer.querySelector("#ss-pref-reviews") as HTMLSelectElement).value || null,
-        innovation: (authContainer.querySelector("#ss-pref-innovation") as HTMLSelectElement).value || null,
+      const preferences: UserPreferences = {
+        price: ((authContainer.querySelector("#ss-pref-price") as HTMLSelectElement).value || null) as UserPreferences["price"],
+        quality: ((authContainer.querySelector("#ss-pref-quality") as HTMLSelectElement).value || null) as UserPreferences["quality"],
+        brand: ((authContainer.querySelector("#ss-pref-brand") as HTMLSelectElement).value || null) as UserPreferences["brand"],
+        sustainability: ((authContainer.querySelector("#ss-pref-sustainability") as HTMLSelectElement).value || null) as UserPreferences["sustainability"],
+        reviews: ((authContainer.querySelector("#ss-pref-reviews") as HTMLSelectElement).value || null) as UserPreferences["reviews"],
+        innovation: ((authContainer.querySelector("#ss-pref-innovation") as HTMLSelectElement).value || null) as UserPreferences["innovation"],
       };
 
       submitButton.disabled = true;
@@ -718,7 +743,7 @@ const extract = (): Extracted => {
 
 chrome.runtime.onMessage.addListener(
   (
-    message: ExtractRequest | AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
+    message: ExtractRequest | AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg | { type: "TOGGLE_SIDEBAR" },
     _sender,
     sendResponse,
   ) => {
@@ -727,7 +752,8 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
-    if (message.tabId && currentTabId && message.tabId !== currentTabId) {
+    const msgTabId = "tabId" in message ? message.tabId : undefined;
+    if (msgTabId != null && currentTabId != null && msgTabId !== currentTabId) {
       return false;
     }
 

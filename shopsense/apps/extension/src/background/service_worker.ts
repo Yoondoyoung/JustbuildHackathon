@@ -141,6 +141,11 @@ const fallbackAnalyze = (extracted: Extracted): AnalyzeResult => {
     price: extracted.price,
     rating: extracted.rating,
     review_count: extracted.review_count,
+    suggested_questions: [
+      "Is this good value for money?",
+      "What do reviews say about it?",
+      "How does it compare to similar products?",
+    ],
   };
 };
 
