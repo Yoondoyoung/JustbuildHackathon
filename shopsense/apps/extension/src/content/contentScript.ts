@@ -14,6 +14,34 @@ import type {
 } from "../shared/types";
 import { extractPage } from "./extractor";
 
+/** Inline formatter so content script has no chunk dependency (Chrome doesn't load ES module chunks for content scripts). */
+function formatChatContent(content: string): string {
+  if (!content || typeof content !== "string") return "";
+  const escape = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const parts: string[] = [];
+  const linkRe = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = linkRe.exec(content)) !== null) {
+    parts.push(
+      escape(content.slice(last, m.index))
+        .replace(/\n/g, "<br>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    );
+    parts.push(
+      `<a href="${escape(m[2])}" target="_blank" rel="noreferrer noopener">${escape(m[1])}</a>`
+    );
+    last = linkRe.lastIndex;
+  }
+  parts.push(
+    escape(content.slice(last))
+      .replace(/\n/g, "<br>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+  );
+  return parts.join("");
+}
+
 const SIDEBAR_ID = "shopsense-sidebar";
 
 let currentTabId: number | null = null;
@@ -153,7 +181,7 @@ const renderChat = (container: HTMLElement, message: ChatMessage) => {
 
   const text = document.createElement("div");
   text.className = "chat-text";
-  text.textContent = message.content;
+  text.innerHTML = formatChatContent(message.content);
 
   wrapper.appendChild(text);
 
@@ -223,6 +251,9 @@ const ensureSidebar = () => {
       .specs { margin-top: 8px; font-size: 12px; }
       .spec-row { padding: 4px 0; border-bottom: 1px solid #eee; }
       .chat-log { font-size: 13px; }
+      .chat-text { line-height: 1.5; }
+      .chat-text a { color: #2563eb; text-decoration: none; }
+      .chat-text a:hover { text-decoration: underline; }
       .chat-message { padding: 8px; border-radius: 10px; margin-bottom: 8px; background: #f3f4f6; }
       .chat-message.user { background: #e0ecff; }
       .chat-citations a { display: block; font-size: 11px; color: #3b82f6; }

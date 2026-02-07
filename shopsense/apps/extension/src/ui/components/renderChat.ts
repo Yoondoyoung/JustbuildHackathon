@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../../shared/types";
+import { formatChatContent } from "../../shared/formatChatContent";
 
 export const renderChat = (container: HTMLElement, message: ChatMessage) => {
   const wrapper = document.createElement("div");
@@ -6,7 +7,7 @@ export const renderChat = (container: HTMLElement, message: ChatMessage) => {
 
   const text = document.createElement("div");
   text.className = "chat-text";
-  text.textContent = message.content;
+  text.innerHTML = formatChatContent(message.content);
 
   wrapper.appendChild(text);
 
