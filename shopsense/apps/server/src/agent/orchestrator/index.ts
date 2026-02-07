@@ -73,8 +73,14 @@ export async function run(payload: ChatPayload): Promise<{ content: string }> {
   const categories = await classify(payload.question);
   const effective = categories.length > 0 ? categories : (["general"] as const);
 
+  console.log("[orchestrator] question:", payload.question);
+  console.log("[orchestrator] classified categories (agents to call):", effective);
+
   const results = await Promise.all(
-    effective.map((cat) => AGENT_RUNNERS[cat](payload))
+    effective.map((cat) => {
+      console.log("[orchestrator] calling agent:", cat);
+      return AGENT_RUNNERS[cat](payload);
+    })
   );
 
   const combined = results.map((r) => r.content).filter(Boolean).join("\n\n");

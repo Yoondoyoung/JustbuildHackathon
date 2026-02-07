@@ -49,12 +49,7 @@ chatRoute.post("/", async (c) => {
     const normalized =
       body.normalized ?? (body.extracted ? toNormalized(body.extracted) : undefined);
 
-    console.log("[chat] incoming payload", {
-      question,
-      normalized,
-      analyze: body.analyze,
-      extracted: body.extracted,
-    });
+    console.log("[chat] question -> orchestrator:", question);
 
     const result = await runChat({
       question,

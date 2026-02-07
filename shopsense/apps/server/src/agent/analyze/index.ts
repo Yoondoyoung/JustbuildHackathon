@@ -66,6 +66,11 @@ export async function runAnalyze(
     suggested_questions?: string[];
   };
   const questions = parsed.suggested_questions?.slice(0, 3).filter(Boolean) ?? [];
+  const defaultQuestions = [
+    "Is this good value for money?",
+    "What do reviews say about it?",
+    "How does it compare to similar products?",
+  ];
   return {
     title: parsed.title ?? normalized.title,
     summary: parsed.summary ?? "",
@@ -74,6 +79,6 @@ export async function runAnalyze(
     price: parsed.price ?? normalized.price,
     rating: parsed.rating ?? normalized.rating,
     review_count: parsed.review_count ?? normalized.review_count,
-    suggested_questions: questions.length > 0 ? questions : undefined,
+    suggested_questions: questions.length > 0 ? questions : defaultQuestions,
   };
 }
