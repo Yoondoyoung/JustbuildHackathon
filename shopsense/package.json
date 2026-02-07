@@ -1,0 +1,5 @@
+{
+  "name": "shopsense",
+  "private": true,
+  "workspaces": ["apps/*"]
+}

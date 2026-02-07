@@ -1,7 +1,9 @@
 export type Msg =
-  | { type: "ANALYZE_CLICK"; tabId: number }
-  | { type: "CHAT_SEND"; tabId: number; question: string }
-  | { type: "PANEL_INIT"; tabId: number };
+  | { type: "ANALYZE_CLICK"; tabId?: number }
+  | { type: "CHAT_SEND"; tabId?: number; question: string }
+  | { type: "PANEL_INIT"; tabId: number }
+  | { type: "GET_TAB_ID" }
+  | { type: "TOGGLE_SIDEBAR" };
 
 export type Extracted = {
   page_url: string;

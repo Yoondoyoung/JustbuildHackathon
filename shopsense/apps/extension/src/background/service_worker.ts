@@ -13,6 +13,30 @@ import type {
 } from "../shared/types";
 import { postAnalyze, postChat } from "./apiClient";
 
+const SIDE_PANEL_PATH = "src/ui/sidepanel.html";
+
+const isSidePanelAvailable = () =>
+  typeof chrome.sidePanel?.setOptions === "function" &&
+  typeof chrome.sidePanel?.open === "function";
+
+chrome.runtime.onInstalled.addListener(() => {
+  if (!isSidePanelAvailable()) return;
+  chrome.sidePanel.setOptions({ path: SIDE_PANEL_PATH, enabled: true });
+});
+
+chrome.action.onClicked.addListener(async (tab) => {
+  if (typeof tab.id !== "number") return;
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
+  } catch (error) {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["contentScript.js"],
+    });
+    await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
+  }
+});
+
 const analyzeCache = new Map<number, AnalyzeResult>();
 const extractedCache = new Map<number, Extracted>();
 const chatCache = new Map<number, ChatMessage[]>();
@@ -58,30 +82,44 @@ const requestExtract = async (tabId: number): Promise<Extracted> => {
 };
 
 chrome.runtime.onMessage.addListener(
-  (message: Msg, _sender, sendResponse) => {
+  (message: Msg, sender, sendResponse) => {
+    const resolveTabId = () =>
+      ("tabId" in message ? message.tabId : undefined) ?? sender.tab?.id;
+
+    if (message.type === "GET_TAB_ID") {
+      sendResponse({ tabId: sender.tab?.id ?? null });
+      return true;
+    }
+
     if (message.type === "ANALYZE_CLICK") {
+      const tabId = resolveTabId();
+      if (typeof tabId !== "number") {
+        sendResponse({ ok: false, error: "No tab id available" });
+        return true;
+      }
+
       (async () => {
         try {
-          sendStatus(message.tabId, "Extracting page data...");
-          const extracted = await requestExtract(message.tabId);
-          extractedCache.set(message.tabId, extracted);
+          sendStatus(tabId, "Extracting page data...");
+          const extracted = await requestExtract(tabId);
+          extractedCache.set(tabId, extracted);
 
-          sendStatus(message.tabId, "Calling analyze API...");
+          sendStatus(tabId, "Calling analyze API...");
           let result: AnalyzeResult;
           try {
             result = await postAnalyze(extracted);
           } catch (error) {
             result = fallbackAnalyze(extracted);
-            sendStatus(message.tabId, "Analyze API failed, using fallback.");
+            sendStatus(tabId, "Analyze API failed, using fallback.");
           }
 
-          analyzeCache.set(message.tabId, result);
-          sendAnalyzeResult(message.tabId, result);
+          analyzeCache.set(tabId, result);
+          sendAnalyzeResult(tabId, result);
           sendResponse({ ok: true });
         } catch (error) {
           const messageText =
             error instanceof Error ? error.message : "Analyze failed";
-          sendError(message.tabId, messageText);
+          sendError(tabId, messageText);
           sendResponse({ ok: false, error: messageText });
         }
       })();
@@ -90,12 +128,18 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "CHAT_SEND") {
+      const tabId = resolveTabId();
+      if (typeof tabId !== "number") {
+        sendResponse({ ok: false, error: "No tab id available" });
+        return true;
+      }
+
       (async () => {
         try {
-          const cachedAnalyze = analyzeCache.get(message.tabId);
-          const cachedExtracted = extractedCache.get(message.tabId);
+          const cachedAnalyze = analyzeCache.get(tabId);
+          const cachedExtracted = extractedCache.get(tabId);
 
-          sendStatus(message.tabId, "Sending chat request...");
+          sendStatus(tabId, "Sending chat request...");
           let responseMessage: ChatMessage;
           try {
             const response = await postChat({
@@ -109,20 +153,20 @@ chrome.runtime.onMessage.addListener(
               role: "assistant",
               content: "Chat API failed. Please try again.",
             };
-            sendStatus(message.tabId, "Chat API failed, using fallback.");
+            sendStatus(tabId, "Chat API failed, using fallback.");
           }
 
-          const history = chatCache.get(message.tabId) ?? [];
+          const history = chatCache.get(tabId) ?? [];
           history.push({ role: "user", content: message.question });
           history.push(responseMessage);
-          chatCache.set(message.tabId, history);
+          chatCache.set(tabId, history);
 
-          sendChatResponse(message.tabId, responseMessage);
+          sendChatResponse(tabId, responseMessage);
           sendResponse({ ok: true });
         } catch (error) {
           const messageText =
             error instanceof Error ? error.message : "Chat failed";
-          sendError(message.tabId, messageText);
+          sendError(tabId, messageText);
           sendResponse({ ok: false, error: messageText });
         }
       })();

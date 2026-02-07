@@ -10,7 +10,8 @@ import type {
 import { renderAnalyze } from "./components/renderAnalyze";
 import { renderChat } from "./components/renderChat";
 
-const statusEl = document.querySelector("#status") as HTMLDivElement;
+const statusDot = document.querySelector("#status-dot") as HTMLSpanElement;
+const statusText = document.querySelector("#status-text") as HTMLSpanElement;
 const analyzeContainer = document.querySelector(
   "#analyze",
 ) as HTMLDivElement;
@@ -19,10 +20,17 @@ const analyzeButton = document.querySelector(
   "#analyze-btn",
 ) as HTMLButtonElement;
 const chatForm = document.querySelector("#chat-form") as HTMLFormElement;
-const chatInput = document.querySelector("#chat-input") as HTMLInputElement;
+const chatInput = document.querySelector("#chat-input") as HTMLTextAreaElement;
 
 const setStatus = (text: string) => {
-  statusEl.textContent = text;
+  statusText.textContent = text;
+  const normalized = text.toLowerCase();
+  statusDot.classList.remove("busy", "error");
+  if (normalized.includes("fail") || normalized.includes("error")) {
+    statusDot.classList.add("error");
+  } else if (normalized.includes("analyz") || normalized.includes("send")) {
+    statusDot.classList.add("busy");
+  }
 };
 
 const getActiveTabId = async (): Promise<number> => {

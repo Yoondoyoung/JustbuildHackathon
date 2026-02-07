@@ -7,27 +7,38 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header>
-      <h1>ShopSense</h1>
-      <button id="analyze-btn" type="button">Analyze</button>
-      <div id="status" class="status">Idle</div>
-    </header>
+    <div class="shopsense-sidebar">
+      <header class="sidebar-header">
+        <h1>ShopSense</h1>
+        <div class="status">
+          <span id="status-dot" class="status-dot"></span>
+          <span id="status-text" class="status-text">Idle</span>
+        </div>
+      </header>
 
-    <section id="analyze" class="panel"></section>
+      <div class="sidebar-action">
+        <button id="analyze-btn" class="btn btn-secondary" type="button">
+          Analyze Page
+        </button>
+      </div>
 
-    <section class="panel">
-      <h2>Chat</h2>
-      <div id="chat" class="chat-log"></div>
-      <form id="chat-form">
-        <input
+      <div class="sidebar-content">
+        <section id="analyze" class="panel"></section>
+        <section class="panel">
+          <h2>Chat</h2>
+          <div id="chat" class="chat-log"></div>
+        </section>
+      </div>
+
+      <form id="chat-form" class="chat-input">
+        <textarea
           id="chat-input"
-          type="text"
-          placeholder="Ask about this product"
-          autocomplete="off"
-        />
-        <button type="submit">Send</button>
+          placeholder="Ask about this product..."
+          rows="2"
+        ></textarea>
+        <button class="btn btn-primary" type="submit">Send</button>
       </form>
-    </section>
+    </div>
 
     <script type="module" src="./sidepanel.ts"></script>
   </body>
