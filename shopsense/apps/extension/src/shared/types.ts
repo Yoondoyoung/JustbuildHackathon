@@ -49,6 +49,7 @@ export type AnalyzeResult = {
   rating?: number;
   review_count?: number;
   citations?: Citation[];
+  suggested_questions?: string[];
 };
 
 export type ChatMessage = {
