@@ -3,11 +3,13 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { openai } from "./providers/llm";
+import { analyzeRoute } from "./routes/analyze";
 
 const app = new Hono();
 app.use("*", cors());
 
 app.get("/health", (c) => c.json({ ok: true }));
+app.route("/analyze", analyzeRoute);
 
 app.get("/verify", async (c) => {
   try {

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:mock": "MOCK_ANALYZE=1 tsx watch src/index.ts",
     "start": "tsx src/index.ts"
   },
   "dependencies": {
