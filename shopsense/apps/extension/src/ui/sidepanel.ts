@@ -9,6 +9,8 @@ import type {
 } from "../shared/types";
 import { renderAnalyze } from "./components/renderAnalyze";
 import { renderChat } from "./components/renderChat";
+import { renderAuth } from "./components/renderAuth";
+import { checkAuth, onAuthStateChange, type AuthState } from "./components/auth";
 
 const statusDot = document.querySelector("#status-dot") as HTMLSpanElement;
 const statusText = document.querySelector("#status-text") as HTMLSpanElement;
@@ -21,6 +23,8 @@ const analyzeButton = document.querySelector(
 ) as HTMLButtonElement;
 const chatForm = document.querySelector("#chat-form") as HTMLFormElement;
 const chatInput = document.querySelector("#chat-input") as HTMLTextAreaElement;
+const authContainer = document.querySelector("#auth-container") as HTMLDivElement;
+const mainContent = document.querySelector("#main-content") as HTMLDivElement;
 
 const setStatus = (text: string) => {
   statusText.textContent = text;
@@ -46,7 +50,18 @@ const sendMessage = async (msg: Msg) => {
   await chrome.runtime.sendMessage(msg);
 };
 
-const init = async () => {
+const showMainContent = () => {
+  authContainer.style.display = "none";
+  mainContent.style.display = "block";
+};
+
+const showAuth = () => {
+  authContainer.style.display = "block";
+  mainContent.style.display = "none";
+  renderAuth(authContainer, showMainContent);
+};
+
+const initMainContent = async () => {
   try {
     const tabId = await getActiveTabId();
     const response = await chrome.runtime.sendMessage({ type: "PANEL_INIT", tabId });
@@ -61,6 +76,27 @@ const init = async () => {
   } catch (error) {
     setStatus("Unable to initialize panel.");
   }
+};
+
+const init = async () => {
+  const authState = await checkAuth();
+  
+  if (authState.isAuthenticated) {
+    showMainContent();
+    await initMainContent();
+  } else {
+    showAuth();
+  }
+
+  // Listen for auth state changes
+  onAuthStateChange((state: AuthState) => {
+    if (state.isAuthenticated) {
+      showMainContent();
+      initMainContent();
+    } else {
+      showAuth();
+    }
+  });
 };
 
 analyzeButton.addEventListener("click", async () => {
