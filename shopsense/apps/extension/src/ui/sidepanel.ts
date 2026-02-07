@@ -142,6 +142,9 @@ chatForm.addEventListener("submit", async (event) => {
 });
 
 chatInput.addEventListener("keydown", (event) => {
+  if (event.isComposing) {
+    return;
+  }
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     chatForm.requestSubmit();
