@@ -52,6 +52,20 @@ const safeSendRuntimeMessage = (
   }
 };
 
+const safeSendTabMessage = (
+  tabId: number,
+  msg: AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
+) => {
+  try {
+    const result = chrome.tabs.sendMessage(tabId, msg);
+    if (result && typeof result.catch === "function") {
+      result.catch(() => {});
+    }
+  } catch (error) {
+    // ignore missing listeners (e.g., content script not injected)
+  }
+};
+
 const sendStatus = (tabId: number, message: string) => {
   const msg: StatusMsg = { type: "STATUS", tabId, message };
   safeSendRuntimeMessage(msg);
@@ -65,11 +79,13 @@ const sendError = (tabId: number, message: string) => {
 const sendAnalyzeResult = (tabId: number, result: AnalyzeResult) => {
   const msg: AnalyzeResultMsg = { type: "ANALYZE_RESULT", tabId, result };
   safeSendRuntimeMessage(msg);
+  safeSendTabMessage(tabId, msg);
 };
 
 const sendChatResponse = (tabId: number, message: ChatMessage) => {
   const msg: ChatResponseMsg = { type: "CHAT_RESPONSE", tabId, message };
   safeSendRuntimeMessage(msg);
+  safeSendTabMessage(tabId, msg);
 };
 
 const fallbackAnalyze = (extracted: Extracted): AnalyzeResult => {
