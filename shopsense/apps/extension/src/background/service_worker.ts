@@ -29,11 +29,8 @@ chrome.action.onClicked.addListener(async (tab) => {
   try {
     await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
   } catch (error) {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["contentScript.js"],
-    });
-    await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
+    // Content script is already declared in manifest; ignore failures
+    // for restricted pages (chrome://, PDFs, etc.).
   }
 });
 
@@ -41,24 +38,37 @@ const analyzeCache = new Map<number, AnalyzeResult>();
 const extractedCache = new Map<number, Extracted>();
 const chatCache = new Map<number, ChatMessage[]>();
 
+const safeSendRuntimeMessage = (
+  msg: AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
+) => {
+  try {
+    const result = chrome.runtime.sendMessage(msg);
+    if (result && typeof result.catch === "function") {
+      result.catch(() => {});
+    }
+  } catch (error) {
+    // ignore missing listeners (e.g., panel not open)
+  }
+};
+
 const sendStatus = (tabId: number, message: string) => {
   const msg: StatusMsg = { type: "STATUS", tabId, message };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const sendError = (tabId: number, message: string) => {
   const msg: ErrorMsg = { type: "ERROR", tabId, message };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const sendAnalyzeResult = (tabId: number, result: AnalyzeResult) => {
   const msg: AnalyzeResultMsg = { type: "ANALYZE_RESULT", tabId, result };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const sendChatResponse = (tabId: number, message: ChatMessage) => {
   const msg: ChatResponseMsg = { type: "CHAT_RESPONSE", tabId, message };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const fallbackAnalyze = (extracted: Extracted): AnalyzeResult => {
