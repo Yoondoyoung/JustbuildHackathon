@@ -32,6 +32,23 @@ function filterByProductRelevance(items: ProductItem[], currentTitle: string | u
   return relevant.length >= 2 ? relevant : items;
 }
 
+/** Keep only results whose price is within 50% of current product price (avoid half-price or double-price variants). */
+function filterByPriceRange(
+  items: ProductItem[],
+  currentPrice: number | undefined
+): ProductItem[] {
+  if (currentPrice == null || currentPrice <= 0) return items;
+  const minRatio = 0.5;
+  const maxRatio = 1.5;
+  const low = currentPrice * minRatio;
+  const high = currentPrice * maxRatio;
+  const inRange = items.filter((item) => {
+    const amount = item.price?.amount;
+    return amount != null && amount >= low && amount <= high;
+  });
+  return inRange.length >= 2 ? inRange : items;
+}
+
 function searchResultsToContext(items: ProductItem[]): string {
   return items
     .slice(0, 12)
@@ -113,7 +130,9 @@ export async function runPrice(payload: ChatPayload): Promise<AgentAnswer> {
   }
 
   const currentTitle = payload.normalized?.title ?? "";
-  const comparable = filterByProductRelevance(priced, currentTitle);
+  const currentPrice = payload.normalized?.price?.value;
+  let comparable = filterByProductRelevance(priced, currentTitle);
+  comparable = filterByPriceRange(comparable, currentPrice);
   const searchContext = searchResultsToContext(comparable);
 
   const aiAnswer = await answerFromSearchResults(payload.question, searchContext);
