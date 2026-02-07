@@ -125,8 +125,6 @@ body {
 }
 
 .chat-log {
-  max-height: 220px;
-  overflow-y: auto;
   font-size: 13px;
 }
 

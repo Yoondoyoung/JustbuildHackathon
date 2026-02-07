@@ -39,6 +39,49 @@ const analyzeCache = new Map<number, AnalyzeResult>();
 const extractedCache = new Map<number, Extracted>();
 const chatCache = new Map<number, ChatMessage[]>();
 
+type SavedCredentials = {
+  email: string;
+  password: string;
+};
+
+const getSavedCredentials = async (): Promise<SavedCredentials | null> => {
+  try {
+    const result = await chrome.storage.local.get("authCredentials");
+    const creds = result?.authCredentials;
+    if (
+      creds &&
+      typeof creds.email === "string" &&
+      typeof creds.password === "string"
+    ) {
+      return creds as SavedCredentials;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const saveCredentials = async (email: string, password: string) => {
+  try {
+    await chrome.storage.local.set({
+      authCredentials: { email, password },
+    });
+  } catch {
+    // ignore storage errors
+  }
+};
+
+const attemptAutoSignIn = async (): Promise<boolean> => {
+  const creds = await getSavedCredentials();
+  if (!creds) return false;
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: creds.email,
+    password: creds.password,
+  });
+  if (error) return false;
+  return !!data.session;
+};
+
 const safeSendRuntimeMessage = (
   msg: AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
 ) => {
@@ -212,7 +255,19 @@ chrome.runtime.onMessage.addListener(
       (async () => {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          sendResponse({ isAuthenticated: !!session });
+          if (session) {
+            sendResponse({ isAuthenticated: true });
+            return;
+          }
+
+          const autoSignedIn = await attemptAutoSignIn();
+          if (!autoSignedIn) {
+            sendResponse({ isAuthenticated: false });
+            return;
+          }
+
+          const { data: { session: refreshed } } = await supabase.auth.getSession();
+          sendResponse({ isAuthenticated: !!refreshed });
         } catch (error) {
           sendResponse({ isAuthenticated: false, error: "Auth check failed" });
         }
@@ -230,6 +285,7 @@ chrome.runtime.onMessage.addListener(
           if (error) {
             sendResponse({ error: error.message });
           } else {
+            await saveCredentials(message.email, message.password);
             sendResponse({ ok: true });
           }
         } catch (error: any) {
@@ -249,6 +305,7 @@ chrome.runtime.onMessage.addListener(
           if (error) {
             sendResponse({ error: error.message });
           } else {
+            await saveCredentials(message.email, message.password);
             sendResponse({ ok: true });
           }
         } catch (error: any) {

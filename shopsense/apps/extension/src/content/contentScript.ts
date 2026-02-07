@@ -197,7 +197,7 @@ const ensureSidebar = () => {
       .meta-row { font-size: 13px; margin-top: 4px; color: #4b5563; }
       .specs { margin-top: 8px; font-size: 12px; }
       .spec-row { padding: 4px 0; border-bottom: 1px solid #eee; }
-      .chat-log { max-height: 220px; overflow-y: auto; font-size: 13px; }
+      .chat-log { font-size: 13px; }
       .chat-message { padding: 8px; border-radius: 10px; margin-bottom: 8px; background: #f3f4f6; }
       .chat-message.user { background: #e0ecff; }
       .chat-citations a { display: block; font-size: 11px; color: #3b82f6; }
@@ -301,7 +301,7 @@ const ensureSidebar = () => {
       <div id="ss-auth-container" class="auth-wrapper" style="display: none;"></div>
       <div id="ss-main-content" class="main-content">
         <div class="action">
-          <button id="ss-analyze" class="btn btn-secondary" type="button">Analyze Page</button>
+          <button id="ss-analyze-btn" class="btn btn-secondary" type="button">Analyze Page</button>
         </div>
         <div class="content">
           <section id="ss-analyze" class="panel"></section>
@@ -329,7 +329,7 @@ const ensureSidebar = () => {
   const authContainer = shadow.querySelector("#ss-auth-container") as HTMLDivElement;
   const mainContent = shadow.querySelector("#ss-main-content") as HTMLDivElement;
 
-  const analyzeButton = shadow.querySelector("button#ss-analyze") as HTMLButtonElement;
+  const analyzeButton = shadow.querySelector("#ss-analyze-btn") as HTMLButtonElement;
   const chatForm = shadow.querySelector("#ss-chat-form") as HTMLFormElement;
   const settingsButton = shadow.querySelector("#ss-settings-btn") as HTMLButtonElement;
   const minimizeButton = shadow.querySelector("#ss-minimize-btn") as HTMLButtonElement;
@@ -614,6 +614,9 @@ const ensureSidebar = () => {
   });
 
   chatInput?.addEventListener("keydown", (event) => {
+    if (event.isComposing) {
+      return;
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       chatForm.requestSubmit();
