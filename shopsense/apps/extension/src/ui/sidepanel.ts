@@ -9,8 +9,11 @@ import type {
 } from "../shared/types";
 import { renderAnalyze } from "./components/renderAnalyze";
 import { renderChat } from "./components/renderChat";
+import { renderAuth } from "./components/renderAuth";
+import { checkAuth, onAuthStateChange, type AuthState } from "./components/auth";
 
-const statusEl = document.querySelector("#status") as HTMLDivElement;
+const statusDot = document.querySelector("#status-dot") as HTMLSpanElement;
+const statusText = document.querySelector("#status-text") as HTMLSpanElement;
 const analyzeContainer = document.querySelector(
   "#analyze",
 ) as HTMLDivElement;
@@ -19,10 +22,19 @@ const analyzeButton = document.querySelector(
   "#analyze-btn",
 ) as HTMLButtonElement;
 const chatForm = document.querySelector("#chat-form") as HTMLFormElement;
-const chatInput = document.querySelector("#chat-input") as HTMLInputElement;
+const chatInput = document.querySelector("#chat-input") as HTMLTextAreaElement;
+const authContainer = document.querySelector("#auth-container") as HTMLDivElement;
+const mainContent = document.querySelector("#main-content") as HTMLDivElement;
 
 const setStatus = (text: string) => {
-  statusEl.textContent = text;
+  statusText.textContent = text;
+  const normalized = text.toLowerCase();
+  statusDot.classList.remove("busy", "error");
+  if (normalized.includes("fail") || normalized.includes("error")) {
+    statusDot.classList.add("error");
+  } else if (normalized.includes("analyz") || normalized.includes("send")) {
+    statusDot.classList.add("busy");
+  }
 };
 
 const getActiveTabId = async (): Promise<number> => {
@@ -38,7 +50,18 @@ const sendMessage = async (msg: Msg) => {
   await chrome.runtime.sendMessage(msg);
 };
 
-const init = async () => {
+const showMainContent = () => {
+  authContainer.style.display = "none";
+  mainContent.style.display = "block";
+};
+
+const showAuth = () => {
+  authContainer.style.display = "block";
+  mainContent.style.display = "none";
+  renderAuth(authContainer, showMainContent);
+};
+
+const initMainContent = async () => {
   try {
     const tabId = await getActiveTabId();
     const response = await chrome.runtime.sendMessage({ type: "PANEL_INIT", tabId });
@@ -53,6 +76,27 @@ const init = async () => {
   } catch (error) {
     setStatus("Unable to initialize panel.");
   }
+};
+
+const init = async () => {
+  const authState = await checkAuth();
+  
+  if (authState.isAuthenticated) {
+    showMainContent();
+    await initMainContent();
+  } else {
+    showAuth();
+  }
+
+  // Listen for auth state changes
+  onAuthStateChange((state: AuthState) => {
+    if (state.isAuthenticated) {
+      showMainContent();
+      initMainContent();
+    } else {
+      showAuth();
+    }
+  });
 };
 
 analyzeButton.addEventListener("click", async () => {

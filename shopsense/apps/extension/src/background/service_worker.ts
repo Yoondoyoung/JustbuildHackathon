@@ -13,28 +13,62 @@ import type {
 } from "../shared/types";
 import { postAnalyze, postChat } from "./apiClient";
 
+const SIDE_PANEL_PATH = "src/ui/sidepanel.html";
+
+const isSidePanelAvailable = () =>
+  typeof chrome.sidePanel?.setOptions === "function" &&
+  typeof chrome.sidePanel?.open === "function";
+
+chrome.runtime.onInstalled.addListener(() => {
+  if (!isSidePanelAvailable()) return;
+  chrome.sidePanel.setOptions({ path: SIDE_PANEL_PATH, enabled: true });
+});
+
+chrome.action.onClicked.addListener(async (tab) => {
+  if (typeof tab.id !== "number") return;
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
+  } catch (error) {
+    // Content script is already declared in manifest; ignore failures
+    // for restricted pages (chrome://, PDFs, etc.).
+  }
+});
+
 const analyzeCache = new Map<number, AnalyzeResult>();
 const extractedCache = new Map<number, Extracted>();
 const chatCache = new Map<number, ChatMessage[]>();
 
+const safeSendRuntimeMessage = (
+  msg: AnalyzeResultMsg | ChatResponseMsg | StatusMsg | ErrorMsg,
+) => {
+  try {
+    const result = chrome.runtime.sendMessage(msg);
+    if (result && typeof result.catch === "function") {
+      result.catch(() => {});
+    }
+  } catch (error) {
+    // ignore missing listeners (e.g., panel not open)
+  }
+};
+
 const sendStatus = (tabId: number, message: string) => {
   const msg: StatusMsg = { type: "STATUS", tabId, message };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const sendError = (tabId: number, message: string) => {
   const msg: ErrorMsg = { type: "ERROR", tabId, message };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const sendAnalyzeResult = (tabId: number, result: AnalyzeResult) => {
   const msg: AnalyzeResultMsg = { type: "ANALYZE_RESULT", tabId, result };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const sendChatResponse = (tabId: number, message: ChatMessage) => {
   const msg: ChatResponseMsg = { type: "CHAT_RESPONSE", tabId, message };
-  chrome.runtime.sendMessage(msg);
+  safeSendRuntimeMessage(msg);
 };
 
 const fallbackAnalyze = (extracted: Extracted): AnalyzeResult => {
@@ -58,30 +92,44 @@ const requestExtract = async (tabId: number): Promise<Extracted> => {
 };
 
 chrome.runtime.onMessage.addListener(
-  (message: Msg, _sender, sendResponse) => {
+  (message: Msg, sender, sendResponse) => {
+    const resolveTabId = () =>
+      ("tabId" in message ? message.tabId : undefined) ?? sender.tab?.id;
+
+    if (message.type === "GET_TAB_ID") {
+      sendResponse({ tabId: sender.tab?.id ?? null });
+      return true;
+    }
+
     if (message.type === "ANALYZE_CLICK") {
+      const tabId = resolveTabId();
+      if (typeof tabId !== "number") {
+        sendResponse({ ok: false, error: "No tab id available" });
+        return true;
+      }
+
       (async () => {
         try {
-          sendStatus(message.tabId, "Extracting page data...");
-          const extracted = await requestExtract(message.tabId);
-          extractedCache.set(message.tabId, extracted);
+          sendStatus(tabId, "Extracting page data...");
+          const extracted = await requestExtract(tabId);
+          extractedCache.set(tabId, extracted);
 
-          sendStatus(message.tabId, "Calling analyze API...");
+          sendStatus(tabId, "Calling analyze API...");
           let result: AnalyzeResult;
           try {
             result = await postAnalyze(extracted);
           } catch (error) {
             result = fallbackAnalyze(extracted);
-            sendStatus(message.tabId, "Analyze API failed, using fallback.");
+            sendStatus(tabId, "Analyze API failed, using fallback.");
           }
 
-          analyzeCache.set(message.tabId, result);
-          sendAnalyzeResult(message.tabId, result);
+          analyzeCache.set(tabId, result);
+          sendAnalyzeResult(tabId, result);
           sendResponse({ ok: true });
         } catch (error) {
           const messageText =
             error instanceof Error ? error.message : "Analyze failed";
-          sendError(message.tabId, messageText);
+          sendError(tabId, messageText);
           sendResponse({ ok: false, error: messageText });
         }
       })();
@@ -90,12 +138,18 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "CHAT_SEND") {
+      const tabId = resolveTabId();
+      if (typeof tabId !== "number") {
+        sendResponse({ ok: false, error: "No tab id available" });
+        return true;
+      }
+
       (async () => {
         try {
-          const cachedAnalyze = analyzeCache.get(message.tabId);
-          const cachedExtracted = extractedCache.get(message.tabId);
+          const cachedAnalyze = analyzeCache.get(tabId);
+          const cachedExtracted = extractedCache.get(tabId);
 
-          sendStatus(message.tabId, "Sending chat request...");
+          sendStatus(tabId, "Sending chat request...");
           let responseMessage: ChatMessage;
           try {
             const response = await postChat({
@@ -109,20 +163,20 @@ chrome.runtime.onMessage.addListener(
               role: "assistant",
               content: "Chat API failed. Please try again.",
             };
-            sendStatus(message.tabId, "Chat API failed, using fallback.");
+            sendStatus(tabId, "Chat API failed, using fallback.");
           }
 
-          const history = chatCache.get(message.tabId) ?? [];
+          const history = chatCache.get(tabId) ?? [];
           history.push({ role: "user", content: message.question });
           history.push(responseMessage);
-          chatCache.set(message.tabId, history);
+          chatCache.set(tabId, history);
 
-          sendChatResponse(message.tabId, responseMessage);
+          sendChatResponse(tabId, responseMessage);
           sendResponse({ ok: true });
         } catch (error) {
           const messageText =
             error instanceof Error ? error.message : "Chat failed";
-          sendError(message.tabId, messageText);
+          sendError(tabId, messageText);
           sendResponse({ ok: false, error: messageText });
         }
       })();
