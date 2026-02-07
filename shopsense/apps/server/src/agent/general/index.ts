@@ -1,36 +1,34 @@
 import type { ChatPayload, AgentAnswer } from "../../types/api";
-import { aggregateSearch } from "../../services/orchestrator";
-import type { ProductItem } from "../../types/search";
+import { braveWebSearch } from "../../connectors/brave";
 
 function toQuery(payload: ChatPayload): string {
+  if (payload.searchQuery?.trim() && payload.searchScope === "comparison") {
+    return payload.searchQuery.trim();
+  }
   const n = payload.normalized;
-  const parts = [n?.brand, n?.model, n?.title].filter(Boolean);
-  return parts.join(" ").trim() || payload.question.trim();
-}
-
-function formatItem(item: ProductItem): string {
-  const amount = item.price?.amount;
-  const currency = item.price?.currency ?? "USD";
-  const priceText = amount != null ? `${amount.toFixed(2)} ${currency}` : "price unavailable";
-  return `- ${item.title} (${item.source.toUpperCase()}) — ${priceText} — ${item.url}`;
+  const base = [n?.brand, n?.model, n?.title].filter(Boolean).join(" ").trim();
+  const subject = base || payload.analyze?.title || "";
+  const q = payload.question.trim();
+  if (payload.searchQuery?.trim()) {
+    return [subject, payload.searchQuery.trim()].filter(Boolean).join(" ").trim();
+  }
+  return [subject, q].filter(Boolean).join(" ").trim();
 }
 
 export async function runGeneral(payload: ChatPayload): Promise<AgentAnswer> {
   const query = toQuery(payload);
   if (!query) {
-    return { content: "질문이 너무 짧아서 답을 만들기 어려워요. 제품명을 알려주세요." };
+    return { content: "I need a clearer product name to answer. Please share it." };
   }
 
-  const response = await aggregateSearch(
-    { query, locale: "US", maxResultsPerSource: 5, sort: "relevance" },
-    { requestId: `general-${Date.now()}` }
-  );
-
-  const top = response.results.slice(0, 3);
-  if (top.length === 0) {
-    return { content: "검색 결과가 없어요. 다른 키워드로 시도해 주세요." };
+  const results = await braveWebSearch(query, 5);
+  if (results.length === 0) {
+    return { content: "No web results found. Please try different keywords." };
   }
 
-  const lines = top.map(formatItem).join("\n");
-  return { content: `관련 제품 검색 결과:\n${lines}` };
+  const lines = results
+    .slice(0, 4)
+    .map((r) => `- ${r.title} — ${r.url}`)
+    .join("\n");
+  return { content: `Relevant references:\n${lines}` };
 }

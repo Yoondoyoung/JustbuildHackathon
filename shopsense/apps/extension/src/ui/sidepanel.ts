@@ -32,7 +32,13 @@ const setStatus = (text: string) => {
   statusDot.classList.remove("busy", "error");
   if (normalized.includes("fail") || normalized.includes("error")) {
     statusDot.classList.add("error");
-  } else if (normalized.includes("analyz") || normalized.includes("send")) {
+  } else if (
+    normalized.includes("analyz") ||
+    normalized.includes("send") ||
+    normalized.includes("generat") ||
+    normalized.includes("working") ||
+    normalized.includes("fetch")
+  ) {
     statusDot.classList.add("busy");
   }
 };

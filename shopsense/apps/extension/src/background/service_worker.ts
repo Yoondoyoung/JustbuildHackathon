@@ -214,7 +214,10 @@ chrome.runtime.onMessage.addListener(
           const cachedAnalyze = analyzeCache.get(tabId);
           const cachedExtracted = extractedCache.get(tabId);
 
-          sendStatus(tabId, "Sending chat request...");
+          sendStatus(tabId, "Preparing answer...");
+          const slowTimer = setTimeout(() => {
+            sendStatus(tabId, "Still working on your answer...");
+          }, 4000);
           let responseMessage: ChatMessage;
           try {
             const response = await postChat({
@@ -230,6 +233,7 @@ chrome.runtime.onMessage.addListener(
             };
             sendStatus(tabId, "Chat API failed, using fallback.");
           }
+          clearTimeout(slowTimer);
 
           const history = chatCache.get(tabId) ?? [];
           history.push({ role: "user", content: message.question });
@@ -237,6 +241,7 @@ chrome.runtime.onMessage.addListener(
           chatCache.set(tabId, history);
 
           sendChatResponse(tabId, responseMessage);
+          sendStatus(tabId, "Chat ready");
           sendResponse({ ok: true });
         } catch (error) {
           const messageText =

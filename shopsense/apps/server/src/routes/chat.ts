@@ -51,7 +51,7 @@ chatRoute.post("/", async (c) => {
       body.normalized ?? (body.extracted ? toNormalized(body.extracted) : undefined);
 
     if (!normalized?.page_url) {
-      return c.json({ error: "Missing normalized or extracted payload" }, 400);
+      return c.json({ error: "Missing normalized or extracted payload." }, 400);
     }
 
     let analyze = body.analyze;
@@ -71,7 +71,9 @@ chatRoute.post("/", async (c) => {
       analyze,
     });
 
-    return c.json(result);
+    return c.json({
+      message: { role: "assistant", content: result.content },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return c.json({ error: message }, 500);
