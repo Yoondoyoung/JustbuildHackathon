@@ -69,8 +69,7 @@ function searchResultsToContext(items: ProductItem[]): string {
           : "no price";
       const ratingStr =
         item.rating != null ? `, rating: ${item.rating}` : "";
-      const imageStr = item.imageUrl ? `\n   image: ${item.imageUrl}` : "";
-      return `${i + 1}. title: ${item.title}\n   source: ${item.source}, price: ${priceStr}${ratingStr}${imageStr}\n   url: ${item.url ?? ""}`;
+      return `${i + 1}. title: ${item.title}\n   source: ${item.source}, price: ${priceStr}${ratingStr}\n   url: ${item.url ?? ""}`;
     })
     .join("\n\n");
 }
@@ -180,8 +179,7 @@ function fallbackFormat(items: ProductItem[]): string {
     const p = item.price;
     const priceStr =
       p?.amount != null ? `${p.amount.toFixed(2)} ${p.currency ?? "USD"}` : "—";
-    const imagePart = item.imageUrl ? `\n  ![${item.title}](${item.imageUrl})` : "";
-    return `• ${item.title} (${item.source}) — ${priceStr}${imagePart}\n  ${item.url ?? ""}`;
+    return `• ${item.title} (${item.source}) — ${priceStr}\n  ${item.url ?? ""}`;
   });
   return `Related products from search:\n\n${lines.join("\n\n")}`;
 }

@@ -26,31 +26,13 @@ const chatInput = document.querySelector("#chat-input") as HTMLTextAreaElement;
 const chatSection = document.querySelector("#chat-section") as HTMLDivElement;
 const authContainer = document.querySelector("#auth-container") as HTMLDivElement;
 const mainContent = document.querySelector("#main-content") as HTMLDivElement;
-const goodChoiceBtn = document.querySelector("#good-choice-btn") as HTMLButtonElement;
-const tabOverview = document.querySelector("#tab-overview") as HTMLButtonElement;
-const tabHighlights = document.querySelector("#tab-highlights") as HTMLButtonElement;
-const tabSpecs = document.querySelector("#tab-specs") as HTMLButtonElement;
-const tabContentOverview = document.querySelector("#tab-content-overview") as HTMLDivElement;
-const tabContentHighlights = document.querySelector("#tab-content-highlights") as HTMLDivElement;
-const tabContentSpecs = document.querySelector("#tab-content-specs") as HTMLDivElement;
-const quickQuestionsEl = document.querySelector("#quick-questions") as HTMLDivElement;
-const resultArea = document.querySelector("#result-area") as HTMLDivElement;
-
-const renderAnalyzeOptions = () => ({
-  overviewEl: tabContentOverview,
-  highlightsEl: tabContentHighlights,
-  specsEl: tabContentSpecs,
-  quickQuestionsEl: quickQuestionsEl,
-});
 
 const setStatus = (text: string) => {
   statusText.textContent = text;
   const normalized = text.toLowerCase();
-  statusDot.classList.remove("busy", "error", "complete");
+  statusDot.classList.remove("busy", "error");
   if (normalized.includes("fail") || normalized.includes("error")) {
     statusDot.classList.add("error");
-  } else if (normalized === "analysis complete") {
-    statusDot.classList.add("complete");
   } else if (
     normalized.includes("analyz") ||
     normalized.includes("send") ||
@@ -86,32 +68,6 @@ const setChatEnabled = (enabled: boolean) => {
   } else {
     // Make sure the user sees chat right away (chat form is fixed at bottom).
     chatSection.scrollIntoView({ block: "start" });
-  }
-};
-
-const showTab = (tab: "overview" | "highlights" | "specs") => {
-  [tabOverview, tabHighlights, tabSpecs].forEach((btn) => btn.classList.remove("active"));
-  [tabContentOverview, tabContentHighlights, tabContentSpecs].forEach((el) => {
-    el.hidden = true;
-  });
-  if (tab === "overview") {
-    tabOverview.classList.add("active");
-    tabOverview.setAttribute("aria-selected", "true");
-    tabHighlights.setAttribute("aria-selected", "false");
-    tabSpecs.setAttribute("aria-selected", "false");
-    tabContentOverview.hidden = false;
-  } else if (tab === "highlights") {
-    tabHighlights.classList.add("active");
-    tabHighlights.setAttribute("aria-selected", "true");
-    tabOverview.setAttribute("aria-selected", "false");
-    tabSpecs.setAttribute("aria-selected", "false");
-    tabContentHighlights.hidden = false;
-  } else {
-    tabSpecs.classList.add("active");
-    tabSpecs.setAttribute("aria-selected", "true");
-    tabOverview.setAttribute("aria-selected", "false");
-    tabHighlights.setAttribute("aria-selected", "false");
-    tabContentSpecs.hidden = false;
   }
 };
 
@@ -154,17 +110,10 @@ const initMainContent = async () => {
     const tabId = await getActiveTabId();
     const response = await chrome.runtime.sendMessage({ type: "PANEL_INIT", tabId });
     if (response?.result) {
-      if (resultArea) resultArea.style.display = "block";
-      renderAnalyze(analyzeContainer, response.result, handleSuggestedQuestion, renderAnalyzeOptions());
+      renderAnalyze(analyzeContainer, response.result, handleSuggestedQuestion);
       setChatEnabled(true);
-      setStatus("Analysis Complete");
-      goodChoiceBtn.style.display = "inline-flex";
-      showTab("overview");
     } else {
-      if (resultArea) resultArea.style.display = "none";
       setChatEnabled(false);
-      goodChoiceBtn.style.display = "none";
-      setStatus("Idle");
     }
     if (Array.isArray(response?.history)) {
       response.history.forEach((message: { role: "user" | "assistant"; content: string }) => {
@@ -257,12 +206,9 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "ANALYZE_RESULT") {
-      if (resultArea) resultArea.style.display = "block";
-      renderAnalyze(analyzeContainer, message.result, handleSuggestedQuestion, renderAnalyzeOptions());
+      renderAnalyze(analyzeContainer, message.result, handleSuggestedQuestion);
+      setStatus("Analyze completed");
       setChatEnabled(true);
-      setStatus("Analysis Complete");
-      goodChoiceBtn.style.display = "inline-flex";
-      showTab("overview");
       sendResponse({ ok: true });
       return true;
     }
@@ -277,16 +223,5 @@ chrome.runtime.onMessage.addListener(
     return false;
   },
 );
-
-tabOverview.addEventListener("click", () => showTab("overview"));
-tabHighlights.addEventListener("click", () => showTab("highlights"));
-tabSpecs.addEventListener("click", () => showTab("specs"));
-
-const closeBtn = document.querySelector("#close-btn") as HTMLButtonElement;
-if (closeBtn) {
-  closeBtn.addEventListener("click", () => {
-    window.close();
-  });
-}
 
 init();

@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { cpSync, mkdirSync, copyFileSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { cpSync, mkdirSync, copyFileSync, existsSync } from "fs";
 
 export default defineConfig({
   build: {
@@ -34,14 +34,6 @@ export default defineConfig({
         if (existsSync(iconsSrc)) {
           mkdirSync(iconsDest, { recursive: true });
           cpSync(iconsSrc, iconsDest, { recursive: true });
-        }
-
-        // Side panel is at dist/src/ui/sidepanel.html; fix asset paths to be relative
-        const sidepanelPath = resolve(outDir, "src/ui/sidepanel.html");
-        if (existsSync(sidepanelPath)) {
-          let html = readFileSync(sidepanelPath, "utf-8");
-          html = html.replace(/(href|src)="\/(?!\/)/g, '$1="../../');
-          writeFileSync(sidepanelPath, html);
         }
       },
     },
