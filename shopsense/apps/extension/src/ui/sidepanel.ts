@@ -59,13 +59,15 @@ const sendMessage = async (msg: Msg) => {
 
 const setChatEnabled = (enabled: boolean) => {
   chatSection.style.display = enabled ? "block" : "none";
+  chatForm.style.display = enabled ? "block" : "none";
   chatInput.disabled = !enabled;
-  (chatForm.querySelector("button[type='submit']") as HTMLButtonElement | null)?.toggleAttribute(
-    "disabled",
-    !enabled,
-  );
+  const submitBtn = chatForm.querySelector("button[type='submit']") as HTMLButtonElement | null;
+  if (submitBtn) submitBtn.disabled = !enabled;
   if (!enabled) {
     chatInput.value = "";
+  } else {
+    // Make sure the user sees chat right away (chat form is fixed at bottom).
+    chatSection.scrollIntoView({ block: "start" });
   }
 };
 
