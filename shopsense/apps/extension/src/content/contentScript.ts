@@ -182,6 +182,11 @@ const renderAnalyze = (container: HTMLElement, result: AnalyzeResult) => {
       btn.style.background = "#f5f5f5";
       btn.style.fontSize = "0.9rem";
       btn.addEventListener("click", () => {
+        // Ensure chat UI is visible and show the clicked suggestion immediately.
+        setChatEnabled(true);
+        if (chatContainer) {
+          renderChat(chatContainer, { role: "user", content: question });
+        }
         chrome.runtime.sendMessage({ type: "CHAT_SEND", question });
       });
       section.appendChild(btn);

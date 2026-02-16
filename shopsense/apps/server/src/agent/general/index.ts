@@ -191,8 +191,16 @@ export async function runGeneral(payload: ChatPayload): Promise<AgentAnswer> {
   const question = payload.question.trim();
   if (!question) return { content: "Please provide a question." };
 
+  const requestId = `general-${Date.now()}`;
   const decision = await decideFromPageData(payload);
+  console.log("[general] decision", {
+    requestId,
+    canAnswerFromPage: decision.canAnswer,
+    hasPageTitle: Boolean(payload.normalized?.title),
+    hasPagePrice: payload.normalized?.price?.value != null,
+  });
   if (decision.canAnswer && decision.answer?.trim()) {
+    console.log("[general] used_page_answer", { requestId });
     return { content: decision.answer.trim() };
   }
 
@@ -204,6 +212,7 @@ export async function runGeneral(payload: ChatPayload): Promise<AgentAnswer> {
     };
   }
 
+  console.log("[general] trigger_gemini_search", { requestId, query });
   const response = await aggregateSearch(
     {
       query,
@@ -211,12 +220,25 @@ export async function runGeneral(payload: ChatPayload): Promise<AgentAnswer> {
       maxResultsPerSource: 10,
       sort: "relevance",
     },
-    { requestId: `general-${Date.now()}` }
+    { requestId }
   );
 
   if (response.results.length === 0) {
+    console.log("[general] gemini_search_empty", {
+      requestId,
+      query,
+      warnings: response.meta.warnings,
+    });
     return { content: "I couldn't find enough info to answer. Try a different query or provide more details." };
   }
+
+  console.log("[general] gemini_search_ok", {
+    requestId,
+    query,
+    counts: response.meta.perSourceCounts,
+    totalResults: response.results.length,
+    latencyMs: response.meta.latencyMs,
+  });
 
   const currentTitle = payload.normalized?.title ?? "";
   const currentPrice = payload.normalized?.price?.value;

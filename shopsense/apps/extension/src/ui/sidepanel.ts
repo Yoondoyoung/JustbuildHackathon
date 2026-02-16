@@ -95,6 +95,9 @@ const showAuth = () => {
 
 const handleSuggestedQuestion = async (question: string) => {
   try {
+    // Render the clicked suggestion as a user message immediately.
+    setChatEnabled(true);
+    renderChat(chatContainer, { role: "user", content: question });
     const tabId = await getActiveTabId();
     await sendMessage({ type: "CHAT_SEND", tabId, question });
   } catch {
