@@ -361,15 +361,18 @@ const ensureSidebar = () => {
         </div>
         <div class="content">
           <section id="ss-analyze" class="panel"></section>
-          <section class="panel">
-            <h2>Chat</h2>
-            <div id="ss-chat" class="chat-log"></div>
-          </section>
+          <div id="ss-chat-section" style="display: none;">
+            <section class="panel">
+              <h2>Chat</h2>
+              <div id="ss-chat" class="chat-log"></div>
+            </section>
+
+            <form id="ss-chat-form" class="chat-input">
+              <textarea id="ss-chat-input" rows="2" placeholder="Ask about this product..."></textarea>
+              <button class="btn btn-primary" type="submit">Send</button>
+            </form>
+          </div>
         </div>
-        <form id="ss-chat-form" class="chat-input">
-          <textarea id="ss-chat-input" rows="2" placeholder="Ask about this product..."></textarea>
-          <button class="btn btn-primary" type="submit">Send</button>
-        </form>
       </div>
     </div>
   `;
@@ -382,6 +385,7 @@ const ensureSidebar = () => {
   analyzeContainer = shadow.querySelector("#ss-analyze") as HTMLDivElement;
   chatContainer = shadow.querySelector("#ss-chat") as HTMLDivElement;
   chatInput = shadow.querySelector("#ss-chat-input") as HTMLTextAreaElement;
+  const chatSection = shadow.querySelector("#ss-chat-section") as HTMLDivElement;
   const authContainer = shadow.querySelector("#ss-auth-container") as HTMLDivElement;
   const mainContent = shadow.querySelector("#ss-main-content") as HTMLDivElement;
 
@@ -390,6 +394,16 @@ const ensureSidebar = () => {
   const settingsButton = shadow.querySelector("#ss-settings-btn") as HTMLButtonElement;
   const minimizeButton = shadow.querySelector("#ss-minimize-btn") as HTMLButtonElement;
   const sidebar = shadow.querySelector("#ss-sidebar") as HTMLDivElement;
+
+  const setChatEnabled = (enabled: boolean) => {
+    chatSection.style.display = enabled ? "block" : "none";
+    if (chatInput) chatInput.disabled = !enabled;
+    (chatForm.querySelector("button[type='submit']") as HTMLButtonElement | null)?.toggleAttribute(
+      "disabled",
+      !enabled,
+    );
+    if (!enabled && chatInput) chatInput.value = "";
+  };
 
   // Initialize auth UI
   const initAuth = async () => {
@@ -649,6 +663,8 @@ const ensureSidebar = () => {
   const showMainContent = () => {
     authContainer.style.display = "none";
     mainContent.style.display = "flex";
+    // Chat should be available only after analyzing the page.
+    setChatEnabled(false);
   };
 
   analyzeButton.addEventListener("click", async () => {
@@ -808,6 +824,7 @@ chrome.runtime.onMessage.addListener(
     if (message.type === "ANALYZE_RESULT" && analyzeContainer) {
       renderAnalyze(analyzeContainer, message.result);
       setStatus("Analyze completed");
+      setChatEnabled(true);
       return true;
     }
 

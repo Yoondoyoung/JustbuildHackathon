@@ -6,6 +6,7 @@ import { openai } from "./providers/llm";
 import { env } from "./config/env";
 import { analyzeRoute } from "./routes/analyze";
 import { chatRoute } from "./routes/chat";
+import { searchRoute } from "./routes/search";
 
 const app = new Hono();
 app.use("*", cors());
@@ -13,6 +14,7 @@ app.use("*", cors());
 app.get("/health", (c) => c.json({ ok: true }));
 app.route("/analyze", analyzeRoute);
 app.route("/chat", chatRoute);
+app.route("/search", searchRoute);
 
 app.get("/verify", async (c) => {
   try {
