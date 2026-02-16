@@ -2,31 +2,49 @@ import type { ChatPayload, AgentAnswer } from "../../types/api";
 import { braveWebSearch } from "../../connectors/brave";
 
 function toProductQuery(payload: ChatPayload): string {
+  if (payload.searchQuery?.trim() && payload.searchScope === "comparison") {
+    return payload.searchQuery.trim();
+  }
   const n = payload.normalized;
   const parts = [n?.brand, n?.model, n?.title].filter(Boolean);
+  if (payload.searchQuery?.trim()) {
+    return [parts.join(" ").trim(), payload.searchQuery.trim()]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  }
   return parts.join(" ").trim() || payload.question.trim();
 }
 
 function toPolicyQuery(payload: ChatPayload): string {
   const productQuery = toProductQuery(payload);
   const domain = payload.normalized?.store_domain?.trim();
+  const question = payload.question.toLowerCase();
+  const discountHint =
+    question.includes("student") ||
+    question.includes("education") ||
+    question.includes("discount") ||
+    question.includes("pricing");
+  const policyTerms = discountHint
+    ? "student discount education pricing"
+    : "return policy shipping warranty";
   if (domain) {
-    return `${productQuery} return policy shipping warranty site:${domain}`;
+    return `${productQuery} ${policyTerms} site:${domain}`;
   }
-  return `${productQuery} return policy shipping warranty`;
+  return `${productQuery} ${policyTerms}`;
 }
 
 export async function runPolicy(payload: ChatPayload): Promise<AgentAnswer> {
   const query = toPolicyQuery(payload);
   if (!query) {
-    return { content: "정책 정보를 조회할 제품명이 없어요. 제품명을 알려주세요." };
+    return { content: "I need a product name to check policy information." };
   }
 
   const results = await braveWebSearch(query, 5);
   if (results.length === 0) {
     return {
       content:
-        "정책 관련 검색 결과를 찾지 못했어요. 판매처/제품명을 조금 더 구체적으로 알려주세요.",
+        "I couldn't find policy results. Please share the retailer or a more specific product name.",
     };
   }
 
@@ -36,6 +54,6 @@ export async function runPolicy(payload: ChatPayload): Promise<AgentAnswer> {
     .join("\n");
 
   return {
-    content: `배송/환불/보증 관련 참고 링크:\n${lines}`,
+    content: `Shipping/return/warranty references:\n${lines}`,
   };
 }

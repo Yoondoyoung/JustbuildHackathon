@@ -33,7 +33,7 @@ export async function generateReviews(product: ProductInfoForReviews): Promise<R
       messages: [
         {
           role: "user",
-          content: `다음 상품에 대한 구매자 리뷰 5개를 짧게 생성해 주세요. 각 리뷰는 1~3문장, 한국어로, 자연스러운 말투로.\n\n${context}\n\nJSON 배열로만 답하세요. 각 항목: { "body": "리뷰 본문", "rating": 숫자(1~5), "author": "이름" }. 예: [{"body":"...","rating":5,"author":"김**"}]`,
+          content: `Write 5 short customer reviews for this product. Each review should be 1–3 sentences, in natural English.\n\n${context}\n\nReply with JSON array only. Each item: { "body": "review text", "rating": number(1-5), "author": "name" }. Example: [{"body":"...","rating":5,"author":"Alex"}]`,
         },
       ],
       max_tokens: 800,
@@ -77,7 +77,7 @@ export async function summarizeReviews(reviewBodies: string[]): Promise<string |
       messages: [
         {
           role: "user",
-          content: `아래는 상품 리뷰들입니다. 2~4문장으로 핵심만 한국어로 요약해 주세요.\n\n${text}`,
+          content: `Here are customer reviews. Summarize the key points in 2–4 concise English sentences.\n\n${text}`,
         },
       ],
       max_tokens: 300,

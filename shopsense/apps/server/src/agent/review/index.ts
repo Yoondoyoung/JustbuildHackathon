@@ -5,8 +5,22 @@ import { braveWebSearch } from "../../connectors/brave";
 
 function toQuery(payload: ChatPayload): string {
   const n = payload.normalized;
-  const parts = [n?.brand, n?.model, n?.title].filter(Boolean);
-  return parts.join(" ").trim() || payload.question.trim();
+  const base = [n?.brand, n?.model, n?.title, payload.analyze?.title]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const param = payload.searchQuery?.trim();
+  const scope = payload.searchScope ?? "product";
+  if (scope === "comparison" && param) {
+    return param;
+  }
+  if (base) {
+    return base;
+  }
+  if (param) {
+    return param;
+  }
+  return payload.question.trim();
 }
 
 function toModelQuery(fullTitle: string | undefined): string {
@@ -19,7 +33,7 @@ function toModelQuery(fullTitle: string | undefined): string {
 export async function runReview(payload: ChatPayload): Promise<AgentAnswer> {
   const query = toQuery(payload);
   if (!query) {
-    return { content: "제품명이 없어서 리뷰를 조회할 수 없어요. 제품명을 알려주세요." };
+    return { content: "I need a product name to check reviews. Please share the product name." };
   }
 
   const search = await aggregateSearch(
@@ -29,7 +43,7 @@ export async function runReview(payload: ChatPayload): Promise<AgentAnswer> {
   const amazonTop = search.results.find((r) => r.source === "amazon" && r.sourceId);
 
   if (!amazonTop?.sourceId) {
-    return { content: "Amazon 기준 리뷰 정보를 찾기 어려워요. 다른 제품명으로 다시 시도해 주세요." };
+    return { content: "I couldn't find Amazon review data. Please try another product name." };
   }
 
   const detail = await fetchProductDetail("amazon", amazonTop.sourceId, `review-${Date.now()}`);
@@ -48,10 +62,10 @@ export async function runReview(payload: ChatPayload): Promise<AgentAnswer> {
       : "관련 웹 검색 결과가 없어요.";
 
   const summaryText = reviewSummary
-    ? `리뷰 요약: ${reviewSummary}`
-    : "리뷰 요약을 생성할 수 없어요.";
+    ? `Review summary: ${reviewSummary}`
+    : "I couldn't generate a review summary.";
 
   return {
-    content: `${summaryText}\n\n대표 리뷰:\n${reviewLines || "리뷰 데이터가 없어요."}\n\n참고 (장단점 검색):\n${consLines}`,
+    content: `${summaryText}\n\nSample reviews:\n${reviewLines || "No review data available."}\n\nPros/cons references:\n${consLines}`,
   };
 }

@@ -4,6 +4,21 @@ import { fetchProductDetail } from "../../services/product-detail";
 import { openai } from "../../providers/llm";
 
 function toQuery(payload: ChatPayload): string {
+  if (payload.searchQuery?.trim() && payload.searchScope === "comparison") {
+    return payload.searchQuery.trim();
+  }
+  const n = payload.normalized;
+  const parts = [n?.brand, n?.model, n?.title].filter(Boolean);
+  if (payload.searchQuery?.trim()) {
+    return [parts.join(" ").trim(), payload.searchQuery.trim()]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  }
+  return parts.join(" ").trim() || payload.question.trim();
+}
+
+function baseProductQuery(payload: ChatPayload): string {
   const n = payload.normalized;
   const parts = [n?.brand, n?.model, n?.title].filter(Boolean);
   return parts.join(" ").trim() || payload.question.trim();
@@ -12,10 +27,52 @@ function toQuery(payload: ChatPayload): string {
 type SpecQueryPlan = {
   query: string;
   spec_keys?: string[];
+  category?: string;
 };
+
+const CATEGORY_KEYWORDS = [
+  "tumbler",
+  "water bottle",
+  "bottle",
+  "mug",
+  "cup",
+  "thermos",
+  "flask",
+  "headphones",
+  "earbuds",
+  "earphones",
+  "speaker",
+  "laptop",
+  "monitor",
+  "keyboard",
+  "mouse",
+  "chair",
+  "desk",
+];
+
+function inferCategory(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  const lower = text.toLowerCase();
+  for (const key of CATEGORY_KEYWORDS) {
+    if (lower.includes(key)) return key;
+  }
+  return undefined;
+}
+
+function normalizeTitleKey(title: string | undefined): string {
+  return (title ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 async function buildSpecQueryPlan(payload: ChatPayload): Promise<SpecQueryPlan> {
   const fallback = toQuery(payload);
+  const inferred =
+    inferCategory(payload.question) ||
+    inferCategory(payload.normalized?.title) ||
+    inferCategory(payload.analyze?.title);
   const context = {
     question: payload.question,
     normalized: payload.normalized
@@ -41,14 +98,14 @@ async function buildSpecQueryPlan(payload: ChatPayload): Promise<SpecQueryPlan> 
         {
           role: "system",
           content:
-            "You generate a concise ecommerce search query for Amazon product lookup and a short list of spec keys relevant to the user's question. Reply JSON only.",
+            "You generate a concise ecommerce search query for Amazon product comparison and a short list of spec keys relevant to the user's question. Also derive the product category (e.g., brand -> category). Reply JSON only.",
         },
         {
           role: "user",
           content: JSON.stringify(
             {
               task:
-                "Create a short search query (5-10 words) to find the most relevant product on Amazon. Also list 3-8 relevant spec keys.",
+                "Create a short search query (2-5 words) for finding alternative products in the same category (e.g., 'tumbler', 'noise cancelling headphones'). Also list 3-8 relevant spec keys and a single category word.",
               context,
             },
             null,
@@ -61,14 +118,15 @@ async function buildSpecQueryPlan(payload: ChatPayload): Promise<SpecQueryPlan> 
     });
     const raw = completion.choices[0]?.message?.content;
     if (!raw) return { query: fallback };
-    const parsed = JSON.parse(raw) as SpecQueryPlan;
-    const query = parsed.query?.trim() || fallback;
+    const parsed = JSON.parse(raw) as SpecQueryPlan & { category?: string };
+    const category = typeof parsed.category === "string" ? parsed.category.trim() : "";
+    const query = category || inferred || parsed.query?.trim() || fallback;
     const spec_keys = Array.isArray(parsed.spec_keys)
       ? parsed.spec_keys.filter((k) => typeof k === "string" && k.trim()).map((k) => k.trim())
       : undefined;
-    return { query, spec_keys };
+    return { query, spec_keys, category: category || inferred };
   } catch {
-    return { query: fallback };
+    return { query: inferred || fallback, category: inferred };
   }
 }
 
@@ -78,34 +136,123 @@ function shortTitle(title: string | undefined): string {
   return t.length > 60 ? `${t.slice(0, 57)}...` : t;
 }
 
+function isSameProductTitle(
+  candidateTitle: string,
+  currentTitle?: string,
+  currentBrand?: string,
+  currentModel?: string
+): boolean {
+  const t = candidateTitle.toLowerCase();
+  const brand = currentBrand?.toLowerCase();
+  const model = currentModel?.toLowerCase();
+  const title = currentTitle?.toLowerCase();
+
+  if (brand && model && t.includes(brand) && t.includes(model)) return true;
+  if (model && t.includes(model)) return true;
+  if (title && title.length > 10 && t.includes(title)) return true;
+  return false;
+}
+
 export async function runSpec(payload: ChatPayload): Promise<AgentAnswer> {
   const plan = await buildSpecQueryPlan(payload);
-  const query = plan.query;
+  const query =
+    payload.searchScope === "comparison"
+      ? plan.category || plan.query
+      : baseProductQuery(payload);
   if (!query) {
-    return { content: "제품명이 없어서 스펙을 조회할 수 없어요. 제품명을 알려주세요." };
+    return { content: "I can't compare specs without a product name. Please share the product name." };
   }
 
   const analyzeSpecs = payload.analyze?.specs ?? payload.normalized?.key_specs;
   const hasAnalyzeSpecs = !!analyzeSpecs && Object.keys(analyzeSpecs).length > 0;
 
+  console.log("[spec] search parameter:", query);
   const search = await aggregateSearch(
-    { query, locale: "US", maxResultsPerSource: 8, sort: "relevance" },
+    { query, locale: "US", maxResultsPerSource: 12, sort: "relevance" },
     { requestId: `spec-${Date.now()}` }
+  );
+  console.log(
+    "[spec] search results (titles):",
+    search.results.slice(0, 10).map((r) => r.title)
   );
   const amazonResults = search.results.filter(
     (r) => r.source === "amazon" && r.sourceId
   );
-  const topAmazon = amazonResults.slice(0, 3);
+  const currentTitleRaw = payload.normalized?.title || payload.analyze?.title;
+  const currentBrand = payload.normalized?.brand;
+  const currentModel = payload.normalized?.model;
+  const filteredAmazon = amazonResults.filter(
+    (r) =>
+      !isSameProductTitle(
+        r.title,
+        currentTitleRaw,
+        currentBrand,
+        currentModel
+      )
+  );
+  const uniqueByTitle = new Set<string>();
+  const dedupedAmazon = (filteredAmazon.length > 0 ? filteredAmazon : amazonResults).filter(
+    (r) => {
+      const key = normalizeTitleKey(r.title);
+      if (!key || uniqueByTitle.has(key)) return false;
+      uniqueByTitle.add(key);
+      return true;
+    }
+  );
+  const topAmazon = dedupedAmazon.slice(0, 5);
+  console.log(
+    "[spec] filtered amazon results:",
+    topAmazon.map((r) => ({ title: r.title, sourceId: r.sourceId }))
+  );
 
   if (!hasAnalyzeSpecs && topAmazon.length === 0) {
-    return { content: "Amazon 기준 스펙 정보를 찾기 어려워요. 다른 제품명으로 다시 시도해 주세요." };
+    return { content: "I couldn't find comparable Amazon products. Try a different product name." };
   }
 
-  const compareDetails = await Promise.all(
+  let compareDetails = await Promise.all(
     topAmazon.map((p) =>
       fetchProductDetail("amazon", p.sourceId!, `spec-${Date.now()}`)
     )
   );
+  compareDetails = compareDetails.filter(
+    (d) => d.specifications && Object.keys(d.specifications).length > 0
+  );
+  console.log(
+    "[spec] detail specs counts:",
+    compareDetails.map((d) => ({
+      title: d.title,
+      specCount: d.specifications ? Object.keys(d.specifications).length : 0,
+    }))
+  );
+
+  if (compareDetails.length < 2 && plan.category && plan.category !== query) {
+    console.log("[spec] retrying with category-only query:", plan.category);
+    const retrySearch = await aggregateSearch(
+      { query: plan.category, locale: "US", maxResultsPerSource: 12, sort: "relevance" },
+      { requestId: `spec-${Date.now()}` }
+    );
+    const retryAmazon = retrySearch.results.filter(
+      (r) => r.source === "amazon" && r.sourceId
+    );
+    const retryDeduped = retryAmazon.filter((r) => {
+      const key = normalizeTitleKey(r.title);
+      if (!key || uniqueByTitle.has(key)) return false;
+      uniqueByTitle.add(key);
+      return true;
+    });
+    const retryTop = retryDeduped.slice(0, 5);
+    const retryDetails = await Promise.all(
+      retryTop.map((p) =>
+        fetchProductDetail("amazon", p.sourceId!, `spec-${Date.now()}`)
+      )
+    );
+    const retryWithSpecs = retryDetails.filter(
+      (d) => d.specifications && Object.keys(d.specifications).length > 0
+    );
+    if (retryWithSpecs.length > compareDetails.length) {
+      compareDetails = retryWithSpecs;
+    }
+  }
 
   const compareItems = compareDetails.map((d) => ({
     title: shortTitle(d.title),
@@ -140,7 +287,7 @@ export async function runSpec(payload: ChatPayload): Promise<AgentAnswer> {
 
   const table = [header, divider, ...rows].join("\n");
   const links = compareItems
-    .map((x, i) => `- 비교 ${i + 1}: ${x.url ?? "URL 없음"}`)
+    .map((x, i) => `- Compare ${i + 1}: ${x.url ?? "URL not available"}`)
     .join("\n");
 
   if (topAmazon.length === 0) {
@@ -149,11 +296,11 @@ export async function runSpec(payload: ChatPayload): Promise<AgentAnswer> {
       .map(([k, v]) => `- ${k}: ${v}`)
       .join("\n");
     return {
-      content: `Amazon 비교 대상이 없어서 현재 제품 스펙만 정리했어요:\n${specLines || "스펙 정보가 없어요."}`,
+      content: `No comparable Amazon items found, so here are the current product specs:\n${specLines || "No spec data available."}`,
     };
   }
 
   return {
-    content: `스펙 비교 (현재 제품 vs Amazon 상위 결과):\n${table}\n\n비교 대상 링크:\n${links || "비교 대상이 없어요."}`,
+    content: `Spec comparison (current product vs top Amazon results):\n${table}\n\nComparison links:\n${links || "No comparison targets available."}`,
   };
 }

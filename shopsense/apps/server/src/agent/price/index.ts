@@ -6,6 +6,11 @@ import { openai } from "../../providers/llm";
 import { env } from "../../config/env";
 
 function toQuery(payload: ChatPayload): string {
+  if (payload.searchQuery?.trim()) {
+    return payload.searchScope === "comparison"
+      ? payload.searchQuery.trim()
+      : payload.searchQuery.trim();
+  }
   const n = payload.normalized;
   const parts = [n?.brand, n?.model, n?.title].filter(Boolean);
   return parts.join(" ").trim() || payload.question.trim();

@@ -51,7 +51,7 @@ chatRoute.post("/", async (c) => {
       body.normalized ?? (body.extracted ? toNormalized(body.extracted) : undefined);
 
     if (!normalized?.page_url) {
-      return c.json({ error: "Missing normalized or extracted payload" }, 400);
+      return c.json({ error: "Missing normalized or extracted payload." }, 400);
     }
 
     let analyze = body.analyze;

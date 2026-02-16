@@ -26,6 +26,8 @@ export type ChatPayload = {
   question: string;
   normalized?: NormalizedProduct;
   analyze?: AnalyzeResult;
+  searchQuery?: string;
+  searchScope?: "product" | "comparison";
 };
 
 /** Single agent output; orchestrator combines these */
