@@ -29,22 +29,20 @@
       <div id="main-content" class="main-content" style="display: none;">
         <div class="sidebar-content">
           <section id="analyze" class="panel"></section>
-          <div id="chat-section" style="display: none;">
-            <section class="panel">
-              <h2>Chat</h2>
-              <div id="chat" class="chat-log"></div>
-            </section>
-
-            <form id="chat-form" class="chat-input">
-              <textarea
-                id="chat-input"
-                placeholder="Ask about this product..."
-                rows="2"
-              ></textarea>
-              <button class="btn btn-primary" type="submit">Send</button>
-            </form>
-          </div>
+          <section id="chat-section" class="panel" style="display: none;">
+            <h2>Chat</h2>
+            <div id="chat" class="chat-log"></div>
+          </section>
         </div>
+
+        <form id="chat-form" class="chat-input" style="display: none;">
+          <textarea
+            id="chat-input"
+            placeholder="Ask about this product..."
+            rows="2"
+          ></textarea>
+          <button class="btn btn-primary" type="submit">Send</button>
+        </form>
       </div>
     </div>
 
