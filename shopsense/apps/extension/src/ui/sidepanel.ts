@@ -77,13 +77,15 @@ const sendMessage = async (msg: Msg) => {
 
 const setChatEnabled = (enabled: boolean) => {
   chatSection.style.display = enabled ? "block" : "none";
+  chatForm.style.display = enabled ? "block" : "none";
   chatInput.disabled = !enabled;
-  (chatForm.querySelector("button[type='submit']") as HTMLButtonElement | null)?.toggleAttribute(
-    "disabled",
-    !enabled,
-  );
+  const submitBtn = chatForm.querySelector("button[type='submit']") as HTMLButtonElement | null;
+  if (submitBtn) submitBtn.disabled = !enabled;
   if (!enabled) {
     chatInput.value = "";
+  } else {
+    // Make sure the user sees chat right away (chat form is fixed at bottom).
+    chatSection.scrollIntoView({ block: "start" });
   }
 };
 
@@ -137,6 +139,9 @@ const showAuth = () => {
 
 const handleSuggestedQuestion = async (question: string) => {
   try {
+    // Render the clicked suggestion as a user message immediately.
+    setChatEnabled(true);
+    renderChat(chatContainer, { role: "user", content: question });
     const tabId = await getActiveTabId();
     await sendMessage({ type: "CHAT_SEND", tabId, question });
   } catch {
