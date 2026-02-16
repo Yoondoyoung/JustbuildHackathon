@@ -128,6 +128,17 @@ body {
   font-size: 13px;
 }
 
+.chat-text {
+  line-height: 1.5;
+}
+.chat-text a {
+  color: #2563eb;
+  text-decoration: none;
+}
+.chat-text a:hover {
+  text-decoration: underline;
+}
+
 .chat-message {
   padding: 8px;
   border-radius: 10px;

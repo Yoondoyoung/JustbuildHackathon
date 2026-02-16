@@ -72,7 +72,7 @@ chatRoute.post("/", async (c) => {
     });
 
     return c.json({
-      message: { role: "assistant", content: result.content },
+      message: { role: "assistant" as const, content: result.content },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
