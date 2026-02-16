@@ -5,6 +5,12 @@ import { tokenize } from "../../utils/text";
 import { openai } from "../../providers/llm";
 import { env } from "../../config/env";
 
+type PageDecision = {
+  canAnswer: boolean;
+  answer?: string;
+  searchQuery?: string;
+};
+
 function toQuery(payload: ChatPayload): string {
   if (payload.searchQuery?.trim() && payload.searchScope === "comparison") {
     return payload.searchQuery.trim();
@@ -73,6 +79,77 @@ const GENERAL_SYSTEM_PROMPT = `You are a shopping assistant. Answer the user's q
 - Use only facts from the search results (titles, prices, ratings, store names, URLs). Do not invent data.
 - Answer in a helpful, concise way. If the question is general (e.g. "what is this?", "is it good?"), summarize what you see from the results and include product URLs when useful.`;
 
+const PAGE_ONLY_SYSTEM_PROMPT = `You are a shopping assistant. You will be given structured data extracted from the CURRENT product page (normalized data) and optionally an analysis summary.
+
+Your job:
+- Decide whether you can answer the user's question WELL using ONLY the provided page data.
+- If you can, provide the best possible answer using ONLY that data.
+- If you cannot, say you cannot and propose a good web search query to answer it.
+
+Return valid JSON only with this shape:
+{
+  "canAnswer": boolean,
+  "answer": string or null,
+  "searchQuery": string or null
+}
+
+Rules:
+- If canAnswer=true, answer must be non-empty and searchQuery must be null.
+- If canAnswer=false, searchQuery must be non-empty and answer must be null.
+- Do NOT invent facts not present in the page data.
+- Be conservative: if the page data doesn't contain enough info (e.g. comparisons, alternatives, market pricing across stores, broader review consensus), choose canAnswer=false.`;
+
+async function decideFromPageData(payload: ChatPayload): Promise<PageDecision> {
+  if (!env.OPENAI_API_KEY?.trim()) {
+    // Without OpenAI we cannot judge; fall back to external search.
+    return { canAnswer: false, searchQuery: payload.question.trim() || "product search" };
+  }
+
+  const pageData = {
+    normalized: payload.normalized ?? null,
+    analyze: payload.analyze ?? null,
+  };
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: PAGE_ONLY_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `User question:\n${payload.question}\n\nPage data (use only this):\n${JSON.stringify(pageData, null, 2)}`,
+        },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 350,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) {
+      return { canAnswer: false, searchQuery: payload.question.trim() || "product search" };
+    }
+
+    const parsed = JSON.parse(raw) as {
+      canAnswer?: unknown;
+      answer?: unknown;
+      searchQuery?: unknown;
+    };
+
+    const canAnswer = parsed.canAnswer === true;
+    const answer =
+      typeof parsed.answer === "string" ? parsed.answer.trim() : "";
+    const searchQuery =
+      typeof parsed.searchQuery === "string" ? parsed.searchQuery.trim() : "";
+
+    if (canAnswer) {
+      return { canAnswer: true, answer: answer || "" };
+    }
+    return { canAnswer: false, searchQuery: searchQuery || payload.question.trim() || "product search" };
+  } catch {
+    return { canAnswer: false, searchQuery: payload.question.trim() || "product search" };
+  }
+}
+
 async function answerFromSearchResults(
   question: string,
   searchContext: string
@@ -113,7 +190,15 @@ function fallbackFormat(items: ProductItem[]): string {
  * General agent: run search API, then let AI form the answer from the search response (same pattern as price agent).
  */
 export async function runGeneral(payload: ChatPayload): Promise<AgentAnswer> {
-  const query = toQuery(payload);
+  const question = payload.question.trim();
+  if (!question) return { content: "Please provide a question." };
+
+  const decision = await decideFromPageData(payload);
+  if (decision.canAnswer && decision.answer?.trim()) {
+    return { content: decision.answer.trim() };
+  }
+
+  const query = (decision.searchQuery ?? "").trim() || toQuery(payload);
   if (!query) {
     return {
       content:
@@ -132,7 +217,7 @@ export async function runGeneral(payload: ChatPayload): Promise<AgentAnswer> {
   );
 
   if (response.results.length === 0) {
-    return { content: "No search results found. Try a different query or product name." };
+    return { content: "I couldn't find enough info to answer. Try a different query or provide more details." };
   }
 
   const currentTitle = payload.normalized?.title ?? "";
@@ -141,9 +226,8 @@ export async function runGeneral(payload: ChatPayload): Promise<AgentAnswer> {
   comparable = filterByPriceRange(comparable, currentPrice);
 
   const searchContext = searchResultsToContext(comparable);
-  const aiAnswer = await answerFromSearchResults(payload.question, searchContext);
-  const content =
-    aiAnswer.length > 0 ? aiAnswer : fallbackFormat(comparable);
+  const aiAnswer = await answerFromSearchResults(question, searchContext);
+  const content = aiAnswer.length > 0 ? aiAnswer : fallbackFormat(comparable);
 
   return { content };
 }

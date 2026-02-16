@@ -29,6 +29,31 @@ export async function generateWithGemini<T extends z.ZodTypeAny>(
   const modelName = options?.model || "gemini-3-pro-preview";
   const genModel = gemini.getGenerativeModel({ model: modelName });
 
+  // Gemini responseSchema supports a limited subset of JSON Schema.
+  // Strip unsupported keywords recursively to avoid 400s.
+  const cleanGeminiJsonSchema = (input: unknown): unknown => {
+    if (Array.isArray(input)) {
+      return input.map(cleanGeminiJsonSchema);
+    }
+    if (!input || typeof input !== "object") return input;
+    const obj = input as Record<string, unknown>;
+
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      // Known unsupported fields from zod-to-json-schema output:
+      if (
+        k === "$schema" ||
+        k === "additionalProperties" ||
+        k === "exclusiveMinimum" ||
+        k === "exclusiveMaximum"
+      ) {
+        continue;
+      }
+      out[k] = cleanGeminiJsonSchema(v);
+    }
+    return out;
+  };
+
   try {
     const generationConfig: any = {};
     const requestConfig: any = {};
@@ -36,12 +61,9 @@ export async function generateWithGemini<T extends z.ZodTypeAny>(
     // Add structured output if schema provided
     if (options?.schema) {
       const jsonSchema = zodToJsonSchema(options.schema);
-      // Remove $schema and additionalProperties that Gemini doesn't accept
-      const cleanedSchema = JSON.parse(JSON.stringify(jsonSchema));
-      delete cleanedSchema.$schema;
-      if (cleanedSchema.additionalProperties !== undefined) {
-        delete cleanedSchema.additionalProperties;
-      }
+      const cleanedSchema = cleanGeminiJsonSchema(
+        JSON.parse(JSON.stringify(jsonSchema))
+      );
       
       generationConfig.responseMimeType = "application/json";
       generationConfig.responseSchema = cleanedSchema;

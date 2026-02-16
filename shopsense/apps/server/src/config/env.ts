@@ -2,12 +2,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1).optional(),
-  SERPAPI_API_KEY: z.string().min(1).optional(),
-  SERPAPI_BASE_URL: z.string().url().default("https://serpapi.com/search.json"),
-  SERPAPI_ENGINE_GOOGLE_SHOPPING: z.string().default("google_shopping"),
-  SERPAPI_ENGINE_AMAZON: z.string().default("amazon"),
-  SERPAPI_ENGINE_AMAZON_PRODUCT: z.string().default("amazon_product"),
-  SERPAPI_ENGINE_WALMART: z.string().default("walmart"),
+  GEMINI_API_KEY: z.string().min(1).optional(),
   PER_SOURCE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(6000),
   RETRY_MAX: z.coerce.number().int().min(0).max(5).default(2),
   CACHE_TTL_MS: z.coerce.number().int().min(0).default(1800000),

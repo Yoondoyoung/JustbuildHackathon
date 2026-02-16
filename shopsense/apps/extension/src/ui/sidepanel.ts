@@ -23,6 +23,7 @@ const analyzeButton = document.querySelector(
 ) as HTMLButtonElement;
 const chatForm = document.querySelector("#chat-form") as HTMLFormElement;
 const chatInput = document.querySelector("#chat-input") as HTMLTextAreaElement;
+const chatSection = document.querySelector("#chat-section") as HTMLDivElement;
 const authContainer = document.querySelector("#auth-container") as HTMLDivElement;
 const mainContent = document.querySelector("#main-content") as HTMLDivElement;
 
@@ -56,14 +57,37 @@ const sendMessage = async (msg: Msg) => {
   await chrome.runtime.sendMessage(msg);
 };
 
+const setChatEnabled = (enabled: boolean) => {
+  chatSection.style.display = enabled ? "block" : "none";
+  chatForm.style.display = enabled ? "block" : "none";
+  chatInput.disabled = !enabled;
+  const submitBtn = chatForm.querySelector("button[type='submit']") as HTMLButtonElement | null;
+  if (submitBtn) submitBtn.disabled = !enabled;
+  if (!enabled) {
+    chatInput.value = "";
+  } else {
+    // Make sure the user sees chat right away (chat form is fixed at bottom).
+    chatSection.scrollIntoView({ block: "start" });
+  }
+};
+
+// Default to disabled until auth/analyze flow enables it.
+analyzeButton.disabled = true;
+setChatEnabled(false);
+
 const showMainContent = () => {
   authContainer.style.display = "none";
   mainContent.style.display = "block";
+  analyzeButton.disabled = false;
+  // Chat should be available only after analyzing the page.
+  setChatEnabled(false);
 };
 
 const showAuth = () => {
   authContainer.style.display = "flex";
   mainContent.style.display = "none";
+  analyzeButton.disabled = true;
+  setChatEnabled(false);
   // Clear any existing content
   authContainer.innerHTML = "";
   renderAuth(authContainer, showMainContent);
@@ -84,6 +108,9 @@ const initMainContent = async () => {
     const response = await chrome.runtime.sendMessage({ type: "PANEL_INIT", tabId });
     if (response?.result) {
       renderAnalyze(analyzeContainer, response.result, handleSuggestedQuestion);
+      setChatEnabled(true);
+    } else {
+      setChatEnabled(false);
     }
     if (Array.isArray(response?.history)) {
       response.history.forEach((message: { role: "user" | "assistant"; content: string }) => {
@@ -178,6 +205,7 @@ chrome.runtime.onMessage.addListener(
     if (message.type === "ANALYZE_RESULT") {
       renderAnalyze(analyzeContainer, message.result, handleSuggestedQuestion);
       setStatus("Analyze completed");
+      setChatEnabled(true);
       sendResponse({ ok: true });
       return true;
     }

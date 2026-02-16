@@ -50,6 +50,8 @@ let statusText: HTMLSpanElement | null = null;
 let analyzeContainer: HTMLDivElement | null = null;
 let chatContainer: HTMLDivElement | null = null;
 let chatInput: HTMLTextAreaElement | null = null;
+let chatSectionEl: HTMLDivElement | null = null;
+let chatFormEl: HTMLFormElement | null = null;
 let sidebarHost: HTMLDivElement | null = null;
 
 const getTabId = async (): Promise<number | null> => {
@@ -76,6 +78,20 @@ const setStatus = (text: string) => {
   } else if (normalized.includes("analyz") || normalized.includes("send")) {
     statusDot.classList.add("busy");
   }
+};
+
+const setChatEnabled = (enabled: boolean) => {
+  if (!chatSectionEl || !chatFormEl) return;
+  chatSectionEl.style.display = enabled ? "block" : "none";
+  chatFormEl.style.display = enabled ? "block" : "none";
+  if (chatInput) {
+    chatInput.disabled = !enabled;
+    if (!enabled) chatInput.value = "";
+  }
+  const submitBtn = chatFormEl.querySelector(
+    "button[type='submit']"
+  ) as HTMLButtonElement | null;
+  if (submitBtn) submitBtn.disabled = !enabled;
 };
 
 const renderAnalyze = (container: HTMLElement, result: AnalyzeResult) => {
@@ -361,12 +377,12 @@ const ensureSidebar = () => {
         </div>
         <div class="content">
           <section id="ss-analyze" class="panel"></section>
-          <section class="panel">
+          <section id="ss-chat-section" class="panel" style="display: none;">
             <h2>Chat</h2>
             <div id="ss-chat" class="chat-log"></div>
           </section>
         </div>
-        <form id="ss-chat-form" class="chat-input">
+        <form id="ss-chat-form" class="chat-input" style="display: none;">
           <textarea id="ss-chat-input" rows="2" placeholder="Ask about this product..."></textarea>
           <button class="btn btn-primary" type="submit">Send</button>
         </form>
@@ -382,14 +398,17 @@ const ensureSidebar = () => {
   analyzeContainer = shadow.querySelector("#ss-analyze") as HTMLDivElement;
   chatContainer = shadow.querySelector("#ss-chat") as HTMLDivElement;
   chatInput = shadow.querySelector("#ss-chat-input") as HTMLTextAreaElement;
+  chatSectionEl = shadow.querySelector("#ss-chat-section") as HTMLDivElement;
   const authContainer = shadow.querySelector("#ss-auth-container") as HTMLDivElement;
   const mainContent = shadow.querySelector("#ss-main-content") as HTMLDivElement;
 
   const analyzeButton = shadow.querySelector("#ss-analyze-btn") as HTMLButtonElement;
-  const chatForm = shadow.querySelector("#ss-chat-form") as HTMLFormElement;
+  chatFormEl = shadow.querySelector("#ss-chat-form") as HTMLFormElement;
   const settingsButton = shadow.querySelector("#ss-settings-btn") as HTMLButtonElement;
   const minimizeButton = shadow.querySelector("#ss-minimize-btn") as HTMLButtonElement;
   const sidebar = shadow.querySelector("#ss-sidebar") as HTMLDivElement;
+  // Ensure initial state is hidden until analyze completes.
+  setChatEnabled(false);
 
   // Initialize auth UI
   const initAuth = async () => {
@@ -649,6 +668,8 @@ const ensureSidebar = () => {
   const showMainContent = () => {
     authContainer.style.display = "none";
     mainContent.style.display = "flex";
+    // Chat should be available only after analyzing the page.
+    setChatEnabled(false);
   };
 
   analyzeButton.addEventListener("click", async () => {
@@ -656,7 +677,7 @@ const ensureSidebar = () => {
     await chrome.runtime.sendMessage({ type: "ANALYZE_CLICK" } satisfies Msg);
   });
 
-  chatForm.addEventListener("submit", async (event) => {
+  chatFormEl.addEventListener("submit", async (event) => {
     event.preventDefault();
     const question = chatInput?.value.trim() ?? "";
     if (!question || !chatContainer) return;
@@ -675,7 +696,7 @@ const ensureSidebar = () => {
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      chatForm.requestSubmit();
+      chatFormEl?.requestSubmit();
     }
   });
 
@@ -808,6 +829,7 @@ chrome.runtime.onMessage.addListener(
     if (message.type === "ANALYZE_RESULT" && analyzeContainer) {
       renderAnalyze(analyzeContainer, message.result);
       setStatus("Analyze completed");
+      setChatEnabled(true);
       return true;
     }
 
