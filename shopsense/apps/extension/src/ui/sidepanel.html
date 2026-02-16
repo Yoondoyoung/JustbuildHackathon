@@ -1,20 +1,49 @@
 <!doctype html>
+<!-- After changing this file: npm run build → Reload extension → close side panel (X) → reopen panel. -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ShopSense</title>
+    <title>ShopeSense</title>
     <link rel="stylesheet" href="./styles.css" />
+    <script>
+      (function() {
+        var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', dark);
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+          document.documentElement.classList.toggle('dark', e.matches);
+        });
+      })();
+    </script>
   </head>
   <body>
     <div class="shopsense-sidebar">
       <header class="sidebar-header">
-        <h1>ShopSense</h1>
+        <div class="header-brand">
+          <div class="logo" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" fill="currentColor"/>
+            </svg>
+          </div>
+          <div>
+            <h1>ShopeSense</h1>
+            <p class="header-subtitle">AI Shopping Assistant</p>
+          </div>
+        </div>
+        <button id="close-btn" class="close-btn" type="button" aria-label="Close">×</button>
+      </header>
+
+      <div class="status-row">
         <div class="status">
           <span id="status-dot" class="status-dot"></span>
           <span id="status-text" class="status-text">Idle</span>
         </div>
-      </header>
+        <button id="good-choice-btn" class="good-choice-btn" type="button" style="display: none;">
+          <span class="good-choice-icon">👍</span>
+          <span>Good Choice!</span>
+          <span class="good-choice-info" aria-hidden="true">ⓘ</span>
+        </button>
+      </div>
 
       <div class="sidebar-action">
         <button id="analyze-btn" class="btn btn-secondary" type="button">
@@ -23,25 +52,57 @@
       </div>
 
       <div id="auth-container" class="auth-wrapper"></div>
-      
-      <div id="main-content" class="main-content" style="display: none;">
-        <div class="sidebar-content">
-          <section id="analyze" class="panel"></section>
-          <section id="chat-section" class="panel" style="display: none;">
-            <h2>Chat</h2>
-            <div id="chat" class="chat-log"></div>
-          </section>
-        </div>
 
-        <form id="chat-form" class="chat-input" style="display: none;">
-          <textarea
-            id="chat-input"
-            placeholder="Ask about this product..."
-            rows="2"
-          ></textarea>
-          <button class="btn btn-primary" type="submit">Send</button>
-        </form>
+      <div id="main-content" class="main-content" style="display: none;">
+        <div id="result-area" class="result-area" style="display: none;">
+        <nav class="tabs" role="tablist">
+          <button id="tab-overview" class="tab active" type="button" role="tab" aria-selected="true" data-tab="overview">
+            <span class="tab-icon">▣</span>
+            Overview
+          </button>
+          <button id="tab-highlights" class="tab" type="button" role="tab" aria-selected="false" data-tab="highlights">
+            <span class="tab-icon">⚡</span>
+            Highlights
+          </button>
+          <button id="tab-specs" class="tab" type="button" role="tab" aria-selected="false" data-tab="specs">
+            <span class="tab-icon">⚙</span>
+            Specs
+          </button>
+        </nav>
+
+        <div class="sidebar-content">
+          <section id="analyze" class="product-card"></section>
+          <div id="tab-content-overview" class="tab-content" role="tabpanel"></div>
+          <div id="tab-content-highlights" class="tab-content" role="tabpanel" hidden></div>
+          <div id="tab-content-specs" class="tab-content" role="tabpanel" hidden></div>
+
+          <div id="chat-section" class="chat-section" style="display: none;">
+            <h2 class="chat-heading">Chat with AI</h2>
+            <form id="chat-form" class="chat-input">
+              <div class="chat-input-wrapper">
+                <span class="chat-input-icon" aria-hidden="true">🤖</span>
+                <textarea
+                  id="chat-input"
+                  placeholder="Ask about this product..."
+                  rows="1"
+                ></textarea>
+                <button class="btn btn-primary chat-send-btn" type="submit">Send</button>
+              </div>
+            </form>
+            <div class="quick-questions">
+              <h3 class="quick-questions-title">
+                <span class="quick-questions-icon">💬</span>
+                Quick Questions
+              </h3>
+              <div id="quick-questions" class="quick-questions-chips"></div>
+            </div>
+            <div id="chat" class="chat-log"></div>
+          </div>
+        </div>
+        </div>
       </div>
+
+      <button id="help-btn" class="help-btn" type="button" aria-label="Help">?</button>
     </div>
 
     <script type="module" src="./sidepanel.ts"></script>
