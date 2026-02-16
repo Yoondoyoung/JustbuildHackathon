@@ -145,6 +145,14 @@ export async function aggregateSearch(
   req: SearchRequest,
   ctx: OrchestratorContext
 ): Promise<SearchResponse> {
+  console.log("[search] aggregate_start", {
+    requestId: ctx.requestId,
+    query: req.query,
+    locale: req.locale ?? "US",
+    sort: req.sort ?? "relevance",
+    maxResultsPerSource: req.maxResultsPerSource ?? 10,
+  });
+
   const filters = toFilters(req);
   const cacheParts = {
     query: req.query,
@@ -160,6 +168,12 @@ export async function aggregateSearch(
 
   const cached = getCached(cacheParts);
   if (cached) {
+    console.log("[search] aggregate_cache_hit", {
+      requestId: ctx.requestId,
+      query: req.query,
+      results: cached.results.length,
+      latencyMs: cached.meta.latencyMs,
+    });
     return cached;
   }
 
@@ -204,6 +218,15 @@ export async function aggregateSearch(
       warnings,
     },
   };
+
+  console.log("[search] aggregate_done", {
+    requestId: ctx.requestId,
+    query: req.query,
+    totalResults: response.results.length,
+    perSourceCounts: response.meta.perSourceCounts,
+    warningsCount: response.meta.warnings.length,
+    latencyMs: response.meta.latencyMs,
+  });
 
   // Avoid caching empty results when Gemini is unavailable (e.g., missing API key),
   // otherwise we'd pin an empty cache until TTL.
